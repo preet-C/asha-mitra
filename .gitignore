@@ -1,0 +1,19 @@
+# secrets
+.env
+.env.*
+!.env.example
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# node
+node_modules/
+dist/
+# local audio + cache (never commit audio)
+*.wav
+*.mp3
+*.pcm
+!backend/eval/samples/*.wav
+backend/.cache/
+.DS_Store
