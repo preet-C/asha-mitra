@@ -97,5 +97,29 @@ def get_followups(days_ahead: int = 7):
     return pg_repo.get_followups(today=today, days_ahead=days_ahead)
 
 
+# ── P10 route — /ws/session ───────────────────────────────────────────────────
+
+@app.websocket("/ws/session")
+async def ws_session(websocket):
+    """One browser voice session: STT → brain → TTS, full duplex.
+
+    WHY a separate import inside the function: GnaniGateway imports Gnani
+    clients which import websockets. Keeping it local means app startup does
+    not fail if the voice package has an import error (graceful degradation).
+
+    Protocol: contract 4.5 (docs/PLAN.md section 4.5).
+    Browser sends: start JSON, binary audio, commit JSON, barge_in JSON, end JSON.
+    Server sends:  ready, transcript, card, alert, tts_start, binary PCM,
+                   tts_end, latency, saved, setting, error.
+    """
+    from app.voice.gateway import GnaniGateway
+    gateway = GnaniGateway()
+    try:
+        await gateway.run(websocket)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("ws_session: unhandled error: %s", exc)
+
+
 # WebSocket routes go ABOVE this line (P9, P10).
 # Static frontend mount goes at the very END (P11).
