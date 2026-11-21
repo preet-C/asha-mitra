@@ -1,0 +1,530 @@
+# danger_signs.yaml
+# Closed list of danger signs the agent monitors.
+# Source: official MoHFW / NHM documents (see docs/guideline_sources.md for URLs + pages).
+#
+# RULES (from AGENTS.md):
+#   - Never add a sign that is not in this file.
+#   - Each sign needs: id, applies_to, labels (en/hi/kn), keywords (en/hi/kn), source.
+#   - `applies_to`: NEWBORN | MOTHER | BOTH
+#   - Keyword lists: used by danger.py keyword net (backup to LLM).
+#     Aim for 8-12 per sign per language. Include code-mixed variants.
+#   - Labels are spoken aloud in refer_phc template. Human verifies hi/kn labels.
+#
+# TODO for team before event:
+#   1. Open each source PDF (URLs in docs/guideline_sources.md).
+#   2. Find the exact page number and update source: field below.
+#   3. Native speaker: verify every hi and kn label field.
+#   4. Check SSBSK 2026 PDF — does it add or change any sign? If yes, add it.
+
+# ─── MOTHER DANGER SIGNS ──────────────────────────────────────────────────────
+
+- id: MO_BLEEDING
+  applies_to: MOTHER
+  labels:
+    en: "Bleeding during pregnancy or after delivery"
+    hi: "गर्भावस्था या प्रसव के बाद रक्तस्राव"       # TODO: native speaker verify
+    kn: "ಗರ್ಭಾವಸ್ಥೆ ಅಥವಾ ಹೆರಿಗೆ ನಂತರ ರಕ್ತಸ್ರಾವ"       # TODO: native speaker verify
+  keywords:
+    en:
+      - "bleeding"
+      - "blood"
+      - "spotting"
+      - "discharge blood"
+      - "heavy bleeding"
+      - "postpartum bleeding"
+      - "vaginal bleeding"
+      - "hemorrhage"
+    hi:
+      - "khoon"
+      - "खून"
+      - "bleeding"
+      - "raktsrav"
+      - "रक्तस्राव"
+      - "zyada khoon"
+      - "bahut khoon"
+      - "khoon aa raha"
+      - "khoon nikal raha"
+      - "prasav ke baad khoon"
+    kn:
+      - "ರಕ್ತಸ್ರಾವ"
+      - "ರಕ್ತ"
+      - "bleeding"
+      - "rakta"
+      - "raktasrava"
+      - "khoon"
+      - "haemorrhage"
+  source: "MCP Card (Revised India MCP Card English, 28-05-2018), MoHFW — p.4, Section: Danger Signs During Pregnancy. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/Revised%20India%20MCP%20Card%20English_(28-05-2018).pdf"
+
+- id: MO_FEVER
+  applies_to: MOTHER
+  labels:
+    en: "High fever during pregnancy or within one month of delivery"
+    hi: "गर्भावस्था या प्रसव के एक माह के भीतर तेज़ बुखार"   # TODO: verify
+    kn: "ಗರ್ಭಾವಸ್ಥೆ ಅಥವಾ ಹೆರಿಗೆಯ ಒಂದು ತಿಂಗಳ ಒಳಗೆ ತೀವ್ರ ಜ್ವರ"  # TODO: verify
+  keywords:
+    en:
+      - "fever"
+      - "high fever"
+      - "high temperature"
+      - "temperature"
+      - "pyrexia"
+      - "hot"
+      - "burning"
+    hi:
+      - "bukhar"
+      - "बुखार"
+      - "tez bukhar"
+      - "तेज़ बुखार"
+      - "fever"
+      - "tapman"
+      - "tapman zyada"
+      - "taap"
+      - "badan garam"
+      - "shareer garam"
+    kn:
+      - "ಜ್ವರ"
+      - "jwara"
+      - "fever"
+      - "taap"
+      - "dehavoushta"
+      - "shareer garam"
+      - "badan hot"
+  source: "MCP Card (Revised India MCP Card English, 28-05-2018), MoHFW — p.4, Section: Danger Signs During Pregnancy and After Delivery. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/Revised%20India%20MCP%20Card%20English_(28-05-2018).pdf"
+
+- id: MO_SEVERE_HEADACHE
+  applies_to: MOTHER
+  labels:
+    en: "Severe headache with blurred vision"
+    hi: "तेज़ सिरदर्द और धुँधली दृष्टि"    # TODO: verify
+    kn: "ತೀವ್ರ ತಲೆನೋವು ಮತ್ತು ಮಸುಕಾದ ದೃಷ್ಟಿ"   # TODO: verify
+  keywords:
+    en:
+      - "headache"
+      - "severe headache"
+      - "blurred vision"
+      - "head pain"
+      - "vision problem"
+      - "can't see clearly"
+      - "dizziness"
+    hi:
+      - "sir dard"
+      - "सिरदर्द"
+      - "tez sir dard"
+      - "bahut sir dard"
+      - "headache"
+      - "aankhon se dhundhla"
+      - "dhundhla dikhna"
+      - "chakkar"
+      - "sir mein dard"
+    kn:
+      - "ತಲೆನೋವು"
+      - "talenovu"
+      - "headache"
+      - "dristhi"
+      - "munde novu"
+      - "kandide musukku"
+      - "dizziness"
+  source: "MCP Card (Revised India MCP Card English, 28-05-2018), MoHFW — p.4, Section: Danger Signs During Pregnancy. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/Revised%20India%20MCP%20Card%20English_(28-05-2018).pdf"
+
+- id: MO_CONVULSIONS
+  applies_to: MOTHER
+  labels:
+    en: "Fits or convulsions"
+    hi: "दौरे या ऐंठन"       # TODO: verify
+    kn: "ಅಪಸ್ಮಾರ ಅಥವಾ ಸೆಳೆತ"   # TODO: verify
+  keywords:
+    en:
+      - "fits"
+      - "convulsions"
+      - "seizure"
+      - "unconscious"
+      - "fainting"
+      - "eclampsia"
+    hi:
+      - "daure"
+      - "दौरे"
+      - "fits"
+      - "mirgi"
+      - "behosh"
+      - "aankhen palat gayi"
+      - "aakadan"
+      - "jhatkaa"
+      - "seize"
+      - "unconscious"
+    kn:
+      - "ಅಪಸ್ಮಾರ"
+      - "fits"
+      - "dauraa"
+      - "seleta"
+      - "apsmaara"
+      - "convulsion"
+      - "behosh"
+      - "unconscious"
+  source: "MCP Card (Revised India MCP Card English, 28-05-2018), MoHFW — p.4, Section: Danger Signs During Pregnancy and During Childbirth. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/Revised%20India%20MCP%20Card%20English_(28-05-2018).pdf"
+
+- id: MO_SWELLING_BODY
+  applies_to: MOTHER
+  labels:
+    en: "Swelling of face, hands, or whole body"
+    hi: "चेहरे, हाथों या पूरे शरीर में सूजन"   # TODO: verify
+    kn: "ಮುಖ, ಕೈ ಅಥವಾ ಇಡೀ ದೇಹದಲ್ಲಿ ಊತ"       # TODO: verify
+  keywords:
+    en:
+      - "swelling"
+      - "swollen"
+      - "puffiness"
+      - "oedema"
+      - "edema"
+      - "face swollen"
+      - "hands swollen"
+      - "feet swollen"
+    hi:
+      - "sujan"
+      - "सूजन"
+      - "swelling"
+      - "haath sujan"
+      - "muh sujan"
+      - "pair sujan"
+      - "pura badan sujan"
+      - "phula hua"
+      - "oedema"
+    kn:
+      - "ಊತ"
+      - "uta"
+      - "swelling"
+      - "muka uta"
+      - "kaige uta"
+      - "paadake uta"
+      - "mele uta"
+      - "oedema"
+  source: "MCP Card (Revised India MCP Card English, 28-05-2018), MoHFW — p.4, Section: Danger Signs During Pregnancy. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/Revised%20India%20MCP%20Card%20English_(28-05-2018).pdf"
+
+- id: MO_WATER_BREAK_PRETERM
+  applies_to: MOTHER
+  labels:
+    en: "Water bag burst before labour or labour pains before 37 weeks"
+    hi: "37 हफ़्ते से पहले पानी की थैली फटना या प्रसव पीड़ा"   # TODO: verify
+    kn: "37 ವಾರದ ಮೊದಲು ನೀರಿನ ಚೀಲ ಒಡೆಯುವುದು ಅಥವಾ ಪ್ರಸವ ನೋವು"  # TODO: verify
+  keywords:
+    en:
+      - "water broke"
+      - "water breaking"
+      - "leaking water"
+      - "amniotic fluid"
+      - "preterm"
+      - "early labour"
+      - "early pain"
+      - "before time"
+      - "before 9 months"
+    hi:
+      - "pani toot gaya"
+      - "pani nikal raha"
+      - "jhilli phoot gayi"
+      - "time se pehle dard"
+      - "9 mahine se pehle dard"
+      - "water broke"
+      - "preterm"
+      - "samay se pehle prasav"
+    kn:
+      - "neeru banditu"
+      - "neeru hogitu"
+      - "jhilli otitu"
+      - "samaya mugiyade novu"
+      - "9 tingala mundhe"
+      - "water broke"
+      - "preterm"
+  source: "MCP Card (Revised India MCP Card English, 28-05-2018), MoHFW — p.4, Section: Danger Signs During Childbirth. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/Revised%20India%20MCP%20Card%20English_(28-05-2018).pdf"
+
+- id: MO_SEVERE_ANAEMIA
+  applies_to: MOTHER
+  labels:
+    en: "Severe anaemia with or without breathlessness"
+    hi: "गंभीर एनीमिया, साँस लेने में तकलीफ़ के साथ या बिना"  # TODO: verify
+    kn: "ತೀವ್ರ ರಕ್ತಹೀನತೆ, ಉಸಿರಾಟದ ತೊಂದರೆ ಸಹಿತ ಅಥವಾ ರಹಿತ"    # TODO: verify
+  keywords:
+    en:
+      - "anaemia"
+      - "anemia"
+      - "pale"
+      - "breathless"
+      - "breathlessness"
+      - "shortness of breath"
+      - "very pale"
+      - "pale nails"
+    hi:
+      - "khoon ki kami"
+      - "खून की कमी"
+      - "anaemia"
+      - "anemia"
+      - "pila rang"
+      - "sans lene mein takleef"
+      - "haath pila"
+      - "nakhun pila"
+      - "kamzor khoon"
+    kn:
+      - "ರಕ್ತಹೀನತೆ"
+      - "anaemia"
+      - "usiru tondare"
+      - "usiraaata kashta"
+      - "bihebba"
+      - "bela"
+      - "nakhalu bela"
+  source: "MCP Card (Revised India MCP Card English, 28-05-2018), MoHFW — p.4, Section: Danger Signs During Pregnancy. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/Revised%20India%20MCP%20Card%20English_(28-05-2018).pdf"
+
+# ─── NEWBORN DANGER SIGNS ─────────────────────────────────────────────────────
+
+- id: NB_NOT_FEEDING
+  applies_to: NEWBORN
+  labels:
+    en: "Not able to feed or suckle"
+    hi: "दूध नहीं पी पा रहा"       # TODO: verify
+    kn: "ಎದೆ ಹಾಲು ಕುಡಿಯಲು ಸಾಧ್ಯವಾಗದಿರುವುದು"  # TODO: verify
+  keywords:
+    en:
+      - "not feeding"
+      - "not breastfeeding"
+      - "can't suckle"
+      - "won't drink"
+      - "feeding problem"
+      - "not drinking milk"
+      - "refusing to feed"
+    hi:
+      - "doodh nahi pi raha"
+      - "dudh nahi pita"
+      - "doodh pi nahi paa raha"
+      - "feeding nahi kar raha"
+      - "peetha nahi"
+      - "stan nahi peeta"
+      - "dudh thukta hai"
+      - "peethe nahi"
+    kn:
+      - "dudh kudiyalilla"
+      - "edhe haalu kudiyalilla"
+      - "feeding maadalla"
+      - "dudh beda anuttade"
+      - "paal kudiyalilla"
+      - "ninna maadalla"
+  source: "ASHA Job Aid for ASHA on HBYC (Home Based Care for Young Child), MoHFW 2018 — pp.4–8, Section: Home-Based Newborn Care, Newborn Assessment Checklist. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/English-Job%20Aid%20for%20ASHA%20on%20HBYC.pdf. Also: HBNC Operational Guidelines 2014, NHM"
+
+- id: NB_WEAK_LIMP
+  applies_to: NEWBORN
+  labels:
+    en: "Weak cry or baby is limp and lethargic"
+    hi: "कमज़ोर रोना या बच्चा ढीला और सुस्त"   # TODO: verify
+    kn: "ದುರ್ಬಲ ಅಳು ಅಥವಾ ಮಗು ನಿಶ್ಯಕ್ತ ಮತ್ತು ಮಂದ"  # TODO: verify
+  keywords:
+    en:
+      - "weak cry"
+      - "limp"
+      - "lethargic"
+      - "not moving"
+      - "floppy"
+      - "not responding"
+      - "drowsy"
+      - "not active"
+    hi:
+      - "kamzor ro raha"
+      - "dhila badan"
+      - "sust"
+      - "hilta nahi"
+      - "haath pair nahi hilata"
+      - "ro nahi raha"
+      - "neend mein hai"
+      - "limp"
+      - "kamzor hai"
+    kn:
+      - "durbala alu"
+      - "nishyakta"
+      - "manda"
+      - "hilalilla"
+      - "kaikaalu aadisalilla"
+      - "susthana"
+      - "limp"
+      - "kamzori"
+  source: "ASHA Job Aid for ASHA on HBYC, MoHFW 2018 — pp.4–8, Section: Newborn Assessment Checklist. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/English-Job%20Aid%20for%20ASHA%20on%20HBYC.pdf"
+
+- id: NB_FAST_BREATHING
+  applies_to: NEWBORN
+  labels:
+    en: "Fast or difficult breathing or chest indrawing"
+    hi: "तेज़ या मुश्किल साँसें या सीने का अंदर धँसना"  # TODO: verify
+    kn: "ವೇಗದ ಅಥವಾ ಕಷ್ಟದ ಉಸಿರಾಟ ಅಥವಾ ಎದೆ ಒಳಗೆ ಸೆಳೆತ"   # TODO: verify
+  keywords:
+    en:
+      - "fast breathing"
+      - "rapid breathing"
+      - "difficult breathing"
+      - "breathing fast"
+      - "chest indrawing"
+      - "chest pulling in"
+      - "grunting"
+      - "breathless"
+      - "laboured breathing"
+    hi:
+      - "tez saans"
+      - "saans tez chal rahi"
+      - "saans lene mein takleef"
+      - "seena andar ja raha"
+      - "seena dhans raha"
+      - "fast breathing"
+      - "saans bahut chal rahi"
+      - "ghargharahat"
+    kn:
+      - "vegada usiru"
+      - "usiru vegavagi"
+      - "usiraaata kashta"
+      - "edhe olaghe hoguttade"
+      - "edhe kuttago"
+      - "fast breathing"
+      - "laboured breathing"
+  source: "ASHA Job Aid for ASHA on HBYC, MoHFW 2018 — pp.4–8, Section: Newborn Assessment Checklist. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/English-Job%20Aid%20for%20ASHA%20on%20HBYC.pdf"
+
+- id: NB_FEVER_OR_COLD
+  applies_to: NEWBORN
+  labels:
+    en: "Feels hot or cold to touch"
+    hi: "छूने पर बुखार जैसा गर्म या ठंडा लगना"   # TODO: verify
+    kn: "ಮುಟ್ಟಿದಾಗ ಬಿಸಿ ಅಥವಾ ತಣ್ಣಗೆ ಅನಿಸುವುದು"      # TODO: verify
+  keywords:
+    en:
+      - "fever"
+      - "hot to touch"
+      - "cold to touch"
+      - "high temperature"
+      - "feels cold"
+      - "feels hot"
+      - "hypothermia"
+      - "hyperthermia"
+      - "temperature"
+    hi:
+      - "bukhar"
+      - "बुखार"
+      - "tez bukhar"
+      - "badan thanda"
+      - "thanda pad gaya"
+      - "shareer thanda"
+      - "badan garam"
+      - "chhune par garam"
+      - "chhune par thanda"
+      - "tapman"
+    kn:
+      - "jwara"
+      - "ಜ್ವರ"
+      - "fever"
+      - "muttidaga bisi"
+      - "muttidaga tannage"
+      - "muttidaga thanda"
+      - "shareer thanda"
+      - "maisala bisi"
+      - "tapman"
+  source: "ASHA Job Aid for ASHA on HBYC (Home Based Care for Young Child), MoHFW 2018, p.10 — 'Feels hot or cold to touch'. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/English-Job%20Aid%20for%20ASHA%20on%20HBYC.pdf"
+
+- id: NB_YELLOW_PALMS_SOLES
+  applies_to: NEWBORN
+  labels:
+    en: "Yellowness of palms and soles (severe jaundice)"
+    hi: "हथेलियों और तलुओं का पीलापन (गंभीर पीलिया)"  # TODO: verify
+    kn: "ಅಂಗೈ ಮತ್ತು ಅಡಿತಳದಲ್ಲಿ ಹಳದಿ ಬಣ್ಣ (ತೀವ್ರ ಕಾಮಾಲೆ)"   # TODO: verify
+  keywords:
+    en:
+      - "yellow"
+      - "jaundice"
+      - "yellowness"
+      - "yellow palms"
+      - "yellow eyes"
+      - "yellow skin"
+      - "yellow feet"
+    hi:
+      - "pila"
+      - "पीला"
+      - "piliya"
+      - "पीलिया"
+      - "jaundice"
+      - "haath pila"
+      - "pair pila"
+      - "aankhen pila"
+      - "badan pila"
+    kn:
+      - "hagalu"
+      - "ಹಳದಿ"
+      - "kamale"
+      - "ಕಾಮಾಲೆ"
+      - "jaundice"
+      - "kaige hagalu"
+      - "paadige hagalu"
+      - "kannu hagalu"
+  source: "ASHA Job Aid for ASHA on HBYC, MoHFW 2018 — pp.4–8, Section: Newborn Assessment Checklist. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/English-Job%20Aid%20for%20ASHA%20on%20HBYC.pdf"
+
+- id: NB_CONVULSIONS
+  applies_to: NEWBORN
+  labels:
+    en: "Convulsions or fits in newborn"
+    hi: "नवजात शिशु को दौरे"     # TODO: verify
+    kn: "ನವಜಾತ ಶಿಶುವಿಗೆ ಸೆಳೆತ"   # TODO: verify
+  keywords:
+    en:
+      - "convulsions"
+      - "fits"
+      - "seizure"
+      - "jerking"
+      - "twitching"
+      - "shaking"
+      - "spasm"
+    hi:
+      - "daure"
+      - "दौरे"
+      - "fits"
+      - "mirgi"
+      - "haath kaanp rahe"
+      - "shareer kaanp raha"
+      - "jhatkaa"
+      - "seize"
+      - "aakadan"
+    kn:
+      - "seleta"
+      - "apsmaara"
+      - "fits"
+      - "dauraa"
+      - "naduguttade"
+      - "kaaikaalu aaduttave"
+      - "jhatkaa"
+  source: "HBNC Operational Guidelines (Revised Home Based Newborn Care Operational Guidelines 2014), NHM/MoHFW — Section: Identification and Referral of Sick Newborns (~pp.12–20). URL: https://nhm.gov.in/images/pdf/programmes/child-health/guidelines/Revised_Home_Based_.New_Born_Care_Operational_Guidelines_2014.pdf. Also cited in ASHA Job Aid 2018, pp.4–8."
+
+- id: NB_CORD_PUS
+  applies_to: NEWBORN
+  labels:
+    en: "Pus or oozing from the umbilical cord (navel)"
+    hi: "नाभि से मवाद या रिसाव"    # TODO: verify
+    kn: "ಹೊಕ್ಕಳಿನಿಂದ ಕೀವು ಅಥವಾ ರಿಸಾವು"  # TODO: verify
+  keywords:
+    en:
+      - "pus"
+      - "oozing"
+      - "navel"
+      - "umbilical cord"
+      - "cord"
+      - "belly button"
+      - "infection"
+      - "discharge"
+      - "smelly navel"
+      - "red navel"
+    hi:
+      - "naabi mein pus"
+      - "naabi se paani"
+      - "naabi se khoon"
+      - "naabi mein sujan"
+      - "dhund"
+      - "नाभि"
+      - "naabi pakk gayi"
+      - "naal mein infection"
+      - "smelly"
+    kn:
+      - "hokkalinginda kevu"
+      - "hokkali kevu"
+      - "hokkalige infection"
+      - "naabi infection"
+      - "naabi pakki"
+      - "pus"
+      - "discharge"
+      - "hokkalige durgandha"
+  source: "ASHA Job Aid for ASHA on HBYC, MoHFW 2018 — pp.4–8, Umbilical cord examination section. URL: https://hbnc-hbyc.mohfw.gov.in/assets/document/English-Job%20Aid%20for%20ASHA%20on%20HBYC.pdf"

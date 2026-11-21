@@ -1,0 +1,47 @@
+{
+  "source": "MoHFW National Immunization Schedule. URL: https://www.mohfw.gov.in/sites/default/files/National%20Immunization%20Schedule.pdf — TODO: confirm edition year from PDF cover page",
+  "notes": "Doses are listed in schedule order. due_weeks is age of child in weeks from DOB. min_gap_weeks_after is [vaccine_id, gap] for spacing rules.",
+
+  "child": [
+    {"id": "BCG",          "label": "BCG",                     "due_weeks": 0,  "spoken": {"en": "BCG",          "hi": "बीसीजी",       "kn": "ಬಿಸಿಜಿ"}},
+    {"id": "HEP_B_BIRTH",  "label": "Hepatitis B (Birth)",     "due_weeks": 0,  "spoken": {"en": "Hepatitis B",  "hi": "हेपेटाइटिस बी", "kn": "ಹೆಪಟೈಟಿಸ್ ಬಿ"}},
+    {"id": "OPV_ZERO",     "label": "OPV Zero",                "due_weeks": 0,  "spoken": {"en": "OPV zero",     "hi": "ओपीवी ज़ीरो",    "kn": "ಒಪಿವಿ ಝೀರೋ"}},
+    {"id": "OPV1",         "label": "bOPV 1",                  "due_weeks": 6,  "spoken": {"en": "OPV one",      "hi": "ओपीवी एक",      "kn": "ಒಪಿವಿ ಒಂದು"}},
+    {"id": "PENTA1",       "label": "Pentavalent 1",           "due_weeks": 6,  "spoken": {"en": "Penta one",    "hi": "पेंटा एक",       "kn": "ಪೆಂಟಾ ಒಂದು"}},
+    {"id": "FIPV1",        "label": "fIPV 1",                  "due_weeks": 6,  "spoken": {"en": "fIPV one",     "hi": "एफ़आईपीवी एक",   "kn": "ಎಫ್‌ಐಪಿವಿ ಒಂದು"}},
+    {"id": "RVV1",         "label": "Rotavirus 1",             "due_weeks": 6,  "spoken": {"en": "Rota one",     "hi": "रोटा एक",        "kn": "ರೋಟಾ ಒಂದು"}},
+    {"id": "PCV1",         "label": "PCV 1",                   "due_weeks": 6,  "spoken": {"en": "PCV one",      "hi": "पीसीवी एक",      "kn": "ಪಿಸಿವಿ ಒಂದು"}},
+    {"id": "OPV2",         "label": "bOPV 2",                  "due_weeks": 10, "spoken": {"en": "OPV two",      "hi": "ओपीवी दो",       "kn": "ಒಪಿವಿ ಎರಡು"}},
+    {"id": "PENTA2",       "label": "Pentavalent 2",           "due_weeks": 10, "spoken": {"en": "Penta two",    "hi": "पेंटा दो",        "kn": "ಪೆಂಟಾ ಎರಡು"}},
+    {"id": "RVV2",         "label": "Rotavirus 2",             "due_weeks": 10, "spoken": {"en": "Rota two",     "hi": "रोटा दो",         "kn": "ರೋಟಾ ಎರಡು"}},
+    {"id": "OPV3",         "label": "bOPV 3",                  "due_weeks": 14, "spoken": {"en": "OPV three",    "hi": "ओपीवी तीन",      "kn": "ಒಪಿವಿ ಮೂರು"}},
+    {"id": "PENTA3",       "label": "Pentavalent 3",           "due_weeks": 14, "spoken": {"en": "Penta three",  "hi": "पेंटा तीन",       "kn": "ಪೆಂಟಾ ಮೂರು"}},
+    {"id": "FIPV2",        "label": "fIPV 2",                  "due_weeks": 14, "spoken": {"en": "fIPV two",     "hi": "एफ़आईपीवी दो",    "kn": "ಎಫ್‌ಐಪಿವಿ ಎರಡು"}},
+    {"id": "RVV3",         "label": "Rotavirus 3",             "due_weeks": 14, "spoken": {"en": "Rota three",   "hi": "रोटा तीन",        "kn": "ರೋಟಾ ಮೂರು"}},
+    {"id": "PCV2",         "label": "PCV 2",                   "due_weeks": 14, "spoken": {"en": "PCV two",      "hi": "पीसीवी दो",       "kn": "ಪಿಸಿವಿ ಎರಡು"}},
+    {"id": "MR1",          "label": "Measles-Rubella 1",       "due_weeks": 38, "spoken": {"en": "MR one",       "hi": "एमआर एक",         "kn": "ಎಂಆರ್ ಒಂದು"}},
+    {"id": "FIPV3",        "label": "fIPV 3",                  "due_weeks": 38, "spoken": {"en": "fIPV three",   "hi": "एफ़आईपीवी तीन",   "kn": "ಎಫ್‌ಐಪಿವಿ ಮೂರು"}},
+    {"id": "PCV_BOOSTER",  "label": "PCV Booster",             "due_weeks": 38, "spoken": {"en": "PCV booster",  "hi": "पीसीवी बूस्टर",   "kn": "ಪಿಸಿವಿ ಬೂಸ್ಟರ್"}},
+    {"id": "VITA1",        "label": "Vitamin A (1st dose)",    "due_weeks": 38, "spoken": {"en": "Vitamin A",    "hi": "विटामिन ए",        "kn": "ವಿಟಮಿನ್ ಎ"}},
+    {"id": "MR2",          "label": "Measles-Rubella 2",       "due_weeks": 68, "spoken": {"en": "MR two",       "hi": "एमआर दो",          "kn": "ಎಂಆರ್ ಎರಡು"}},
+    {"id": "DPT_BOOSTER1", "label": "DPT Booster 1",          "due_weeks": 68, "spoken": {"en": "DPT booster",  "hi": "डीपीटी बूस्टर",    "kn": "ಡಿಪಿಟಿ ಬೂಸ್ಟರ್"}},
+    {"id": "OPV_BOOSTER",  "label": "OPV Booster",            "due_weeks": 68, "spoken": {"en": "OPV booster",  "hi": "ओपीवी बूस्टर",     "kn": "ಒಪಿವಿ ಬೂಸ್ಟರ್"}},
+    {"id": "VITA2",        "label": "Vitamin A (2nd dose)",   "due_weeks": 68, "spoken": {"en": "Vitamin A",    "hi": "विटामिन ए",         "kn": "ವಿಟಮಿನ್ ಎ"}}
+  ],
+
+  "mother": [
+    {
+      "id": "TD1",
+      "label": "Td 1",
+      "spoken": {"en": "TT injection one", "hi": "टीटी इंजेक्शन एक", "kn": "ಟಿಟಿ ಚುಚ್ಚುಮದ್ದು ಒಂದು"},
+      "note": "Give during pregnancy, any time"
+    },
+    {
+      "id": "TD2",
+      "label": "Td 2",
+      "spoken": {"en": "TT injection two", "hi": "टीटी इंजेक्शन दो", "kn": "ಟಿಟಿ ಚುಚ್ಚುಮದ್ದು ಎರಡು"},
+      "min_gap_weeks_after": ["TD1", 4],
+      "note": "At least 4 weeks after TD1"
+    }
+  ]
+}
