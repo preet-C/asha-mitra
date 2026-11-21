@@ -97,6 +97,27 @@ def get_followups(days_ahead: int = 7):
     return pg_repo.get_followups(today=today, days_ahead=days_ahead)
 
 
+# ── P9 route — /ws/loopback (audio spike, no Gnani) ─────────────────────────
+
+@app.websocket("/ws/loopback")
+async def ws_loopback(websocket):
+    """P9 audio plumbing spike.
+
+    Collects PCM16 audio from the browser until the user releases the button
+    (commit message), writes loopback.wav so we can listen to it on the laptop,
+    then streams back a 2-second 440 Hz test tone.
+
+    WHY a separate route from /ws/session: this has zero Gnani / brain logic.
+    It exists only to prove the mic → WebSocket → speaker pipeline works on a
+    real phone before we wire in Gnani (P10). Remove or leave — it won't
+    interfere with the real session route.
+
+    Protocol: same contract 4.5 messages (start, binary audio, commit, barge_in, end).
+    """
+    from app.voice.loopback import run_loopback
+    await run_loopback(websocket)
+
+
 # ── P10 route — /ws/session ───────────────────────────────────────────────────
 
 @app.websocket("/ws/session")

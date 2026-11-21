@@ -1,0 +1,144 @@
+# vaccine_aliases.yaml
+# Small lookup table: vaccine spoken aliases per language.
+# WHY: grounding.py needs to check whether the ASHA worker mentioned a vaccine
+#      by any of its local names. This is data-only — no medical content.
+#
+# Format: each vaccine ID maps to lists of alias strings per language (en/hi/kn).
+# Matching is case-insensitive substring in the normalised transcript.
+# Source: common spoken names heard from ASHA workers + vaccine labels in
+#         vaccine_schedule.json "spoken" field.
+#
+# RULES:
+#   - Only en/hi/kn names. No Tier 2 languages here.
+#   - No medical content, dosage, or clinical instructions.
+#   - New vaccine IDs must already be in vaccine_schedule.json.
+
+BCG:
+  en: ["bcg", "bee see jee", "tb vaccine", "bacillus"]
+  hi: ["बीसीजी", "bcg", "बी सी जी", "टीबी वैक्सीन"]
+  kn: ["ಬಿಸಿಜಿ", "bcg", "ಬಿ ಸಿ ಜಿ"]
+
+HEP_B_BIRTH:
+  en: ["hepatitis b", "hep b", "hepb", "hepatitis"]
+  hi: ["हेपेटाइटिस बी", "हेप बी", "hepatitis b"]
+  kn: ["ಹೆಪಟೈಟಿಸ್ ಬಿ", "ಹೆಪ್ ಬಿ", "hepatitis b"]
+
+OPV_ZERO:
+  en: ["opv zero", "opv 0", "oral polio", "zero dose opv", "opv birth"]
+  hi: ["ओपीवी ज़ीरो", "ओपीवी 0", "ओपीवी शून्य", "opv zero", "पोलियो ज़ीरो"]
+  kn: ["ಒಪಿವಿ ಝೀರೋ", "ಒಪಿವಿ 0", "opv zero", "ಪೋಲಿಯೋ ಝೀರೋ"]
+
+OPV1:
+  en: ["opv one", "opv 1", "opv first", "oral polio one", "polio one"]
+  hi: ["ओपीवी एक", "ओपीवी 1", "opv 1", "पोलियो एक"]
+  kn: ["ಒಪಿವಿ ಒಂದು", "ಒಪಿವಿ 1", "opv 1", "ಪೋಲಿಯೋ ಒಂದು"]
+
+OPV2:
+  en: ["opv two", "opv 2", "opv second", "oral polio two", "polio two"]
+  hi: ["ओपीवी दो", "ओपीवी 2", "opv 2", "पोलियो दो"]
+  kn: ["ಒಪಿವಿ ಎರಡು", "ಒಪಿವಿ 2", "opv 2", "ಪೋಲಿಯೋ ಎರಡು"]
+
+OPV3:
+  en: ["opv three", "opv 3", "opv third", "oral polio three", "polio three"]
+  hi: ["ओपीवी तीन", "ओपीवी 3", "opv 3", "पोलियो तीन"]
+  kn: ["ಒಪಿವಿ ಮೂರು", "ಒಪಿವಿ 3", "opv 3", "ಪೋಲಿಯೋ ಮೂರು"]
+
+OPV_BOOSTER:
+  en: ["opv booster", "polio booster"]
+  hi: ["ओपीवी बूस्टर", "पोलियो बूस्टर"]
+  kn: ["ಒಪಿವಿ ಬೂಸ್ಟರ್", "ಪೋಲಿಯೋ ಬೂಸ್ಟರ್"]
+
+PENTA1:
+  en: ["penta one", "penta 1", "pentavalent one", "pentavalent 1", "dpt one", "dpt 1", "penta first"]
+  hi: ["पेंटा एक", "पेंटा 1", "पेंटावेलेंट एक", "डीपीटी एक", "penta 1", "penta one"]
+  kn: ["ಪೆಂಟಾ ಒಂದು", "ಪೆಂಟಾ 1", "ಪೆಂಟಾವೇಲೆಂಟ್ ಒಂದು", "ಡಿಪಿಟಿ ಒಂದು", "penta 1"]
+
+PENTA2:
+  en: ["penta two", "penta 2", "pentavalent two", "pentavalent 2", "dpt two", "dpt 2", "penta second"]
+  hi: ["पेंटा दो", "पेंटा 2", "पेंटावेलेंट दो", "डीपीटी दो", "penta 2", "penta two"]
+  kn: ["ಪೆಂಟಾ ಎರಡು", "ಪೆಂಟಾ 2", "ಪೆಂಟಾವೇಲೆಂಟ್ ಎರಡು", "ಡಿಪಿಟಿ ಎರಡು", "penta 2"]
+
+PENTA3:
+  en: ["penta three", "penta 3", "pentavalent three", "pentavalent 3", "dpt three", "dpt 3", "penta third"]
+  hi: ["पेंटा तीन", "पेंटा 3", "पेंटावेलेंट तीन", "डीपीटी तीन", "penta 3", "penta three"]
+  kn: ["ಪೆಂಟಾ ಮೂರು", "ಪೆಂಟಾ 3", "ಪೆಂಟಾವೇಲೆಂಟ್ ಮೂರು", "ಡಿಪಿಟಿ ಮೂರು", "penta 3"]
+
+FIPV1:
+  en: ["fipv one", "fipv 1", "ipv one", "ipv 1", "inactivated polio one", "fractional ipv one"]
+  hi: ["एफ़आईपीवी एक", "fipv 1", "ipv 1", "फ्रैक्शनल पोलियो एक"]
+  kn: ["ಎಫ್‌ಐಪಿವಿ ಒಂದು", "fipv 1", "ipv 1"]
+
+FIPV2:
+  en: ["fipv two", "fipv 2", "ipv two", "ipv 2", "inactivated polio two", "fractional ipv two"]
+  hi: ["एफ़आईपीवी दो", "fipv 2", "ipv 2", "फ्रैक्शनल पोलियो दो"]
+  kn: ["ಎಫ್‌ಐಪಿವಿ ಎರಡು", "fipv 2", "ipv 2"]
+
+FIPV3:
+  en: ["fipv three", "fipv 3", "ipv three", "ipv 3", "inactivated polio three"]
+  hi: ["एफ़आईपीवी तीन", "fipv 3", "ipv 3"]
+  kn: ["ಎಫ್‌ಐಪಿವಿ ಮೂರು", "fipv 3", "ipv 3"]
+
+RVV1:
+  en: ["rota one", "rota 1", "rotavirus one", "rotavirus 1", "rvv one", "rvv 1", "rota first"]
+  hi: ["रोटा एक", "रोटा 1", "रोटावायरस एक", "rvv 1", "rota 1"]
+  kn: ["ರೋಟಾ ಒಂದು", "ರೋಟಾ 1", "ರೋಟಾವೈರಸ್ ಒಂದು", "rvv 1"]
+
+RVV2:
+  en: ["rota two", "rota 2", "rotavirus two", "rotavirus 2", "rvv two", "rvv 2", "rota second"]
+  hi: ["रोटा दो", "रोटा 2", "रोटावायरस दो", "rvv 2", "rota 2"]
+  kn: ["ರೋಟಾ ಎರಡು", "ರೋಟಾ 2", "ರೋಟಾವೈರಸ್ ಎರಡು", "rvv 2"]
+
+RVV3:
+  en: ["rota three", "rota 3", "rotavirus three", "rotavirus 3", "rvv three", "rvv 3", "rota third"]
+  hi: ["रोटा तीन", "रोटा 3", "रोटावायरस तीन", "rvv 3", "rota 3"]
+  kn: ["ರೋಟಾ ಮೂರು", "ರೋಟಾ 3", "ರೋಟಾವೈರಸ್ ಮೂರು", "rvv 3"]
+
+PCV1:
+  en: ["pcv one", "pcv 1", "pneumococcal one", "pneumo one", "pcv first"]
+  hi: ["पीसीवी एक", "pcv 1", "न्यूमो एक"]
+  kn: ["ಪಿಸಿವಿ ಒಂದು", "pcv 1", "ನ್ಯೂಮೋ ಒಂದು"]
+
+PCV2:
+  en: ["pcv two", "pcv 2", "pneumococcal two", "pneumo two", "pcv second"]
+  hi: ["पीसीवी दो", "pcv 2", "न्यूमो दो"]
+  kn: ["ಪಿಸಿವಿ ಎರಡು", "pcv 2", "ನ್ಯೂಮೋ ಎರಡು"]
+
+PCV_BOOSTER:
+  en: ["pcv booster", "pneumococcal booster", "pneumo booster"]
+  hi: ["पीसीवी बूस्टर", "न्यूमो बूस्टर"]
+  kn: ["ಪಿಸಿವಿ ಬೂಸ್ಟರ್", "ನ್ಯೂಮೋ ಬೂಸ್ಟರ್"]
+
+MR1:
+  en: ["mr one", "mr 1", "measles rubella one", "measles one", "mr first"]
+  hi: ["एमआर एक", "mr 1", "खसरा रूबेला एक", "measles rubella one"]
+  kn: ["ಎಂಆರ್ ಒಂದು", "mr 1", "ದಡ್ಡ ರೂಬೆಲ್ಲಾ ಒಂದು"]
+
+MR2:
+  en: ["mr two", "mr 2", "measles rubella two", "measles two", "mr second"]
+  hi: ["एमआर दो", "mr 2", "खसरा रूबेला दो", "measles rubella two"]
+  kn: ["ಎಂಆರ್ ಎರಡು", "mr 2", "ದಡ್ಡ ರೂಬೆಲ್ಲಾ ಎರಡು"]
+
+DPT_BOOSTER1:
+  en: ["dpt booster", "dpt booster one", "dpt 1 booster", "diphtheria booster"]
+  hi: ["डीपीटी बूस्टर", "dpt booster"]
+  kn: ["ಡಿಪಿಟಿ ಬೂಸ್ಟರ್", "dpt booster"]
+
+VITA1:
+  en: ["vitamin a", "vitamin a first", "vita one", "vitamin a 1"]
+  hi: ["विटामिन ए", "vitamin a", "विटामिन ए पहला"]
+  kn: ["ವಿಟಮಿನ್ ಎ", "vitamin a", "ವಿಟಮಿನ್ ಎ ಒಂದನೇ"]
+
+VITA2:
+  en: ["vitamin a second", "vitamin a two", "vita two", "vitamin a 2"]
+  hi: ["विटामिन ए दूसरा", "vitamin a 2"]
+  kn: ["ವಿಟಮಿನ್ ಎ ಎರಡನೇ", "vitamin a 2"]
+
+TD1:
+  en: ["td one", "td 1", "tt one", "tt 1", "tt injection one", "tetanus one", "tt injection", "tt vaccine"]
+  hi: ["टीटी इंजेक्शन एक", "टीटी एक", "td 1", "tt 1", "टेटनस एक", "टीटी इंजेक्शन"]
+  kn: ["ಟಿಟಿ ಚುಚ್ಚುಮದ್ದು ಒಂದು", "ಟಿಟಿ ಒಂದು", "td 1", "tt 1", "ಟೆಟನಸ್ ಒಂದು"]
+
+TD2:
+  en: ["td two", "td 2", "tt two", "tt 2", "tt injection two", "tetanus two", "second tt"]
+  hi: ["टीटी इंजेक्शन दो", "टीटी दो", "td 2", "tt 2", "टेटनस दो", "दूसरा टीटी"]
+  kn: ["ಟಿಟಿ ಚುಚ್ಚುಮದ್ದು ಎರಡು", "ಟಿಟಿ ಎರಡು", "td 2", "tt 2", "ಎರಡನೇ ಟಿಟಿ"]
