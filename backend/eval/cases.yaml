@@ -1,0 +1,180 @@
+# backend/eval/cases.yaml
+# Evaluation cases for P4 bake-off + P6 eval runner.
+# Format: id, lang, today, text, expect
+#
+# expect fields:
+#   beneficiary_id:  exact string "DDDD"
+#   visit_type:      ANC | PNC | NEWBORN | IMMUNISATION | OTHER
+#   weight_kg:       decimal (tolerance ±0.05 in bakeoff.py)
+#   vaccines_given_today: list of IDs
+#   next_visit_date: ISO date string (resolved from next_visit spec)
+#   danger:          list of sign IDs the system must catch (empty = none expected)
+#   asks_advice:     true | false
+#
+# WHY these 15 cases:
+#   - Cover all three languages (Hindi Devanagari, Kannada script, English)
+#   - Cover danger positives, negations, self-correction, advice requests
+#   - Cover number words in Hindi and Kannada
+#   - P6 will add more cases; grow this file, never shrink it.
+
+# ── HINDI (Devanagari script, codemix) ────────────────────────────────────────
+
+- id: hi_01_anc_all_fields
+  lang: hi-IN
+  today: "2026-11-21"
+  text: "ID 1042, ANC checkup किया। माँ का वज़न अट्ठावन किलो है। TT injection एक आज लगाया। अगला visit पंद्रह दिसंबर को।"
+  expect:
+    beneficiary_id: "1042"
+    visit_type: "ANC"
+    weight_kg: 58.0
+    vaccines_given_today: ["TD1"]
+    next_visit_date: "2026-12-15"
+    danger: []
+
+- id: hi_02_newborn_weight_words
+  lang: hi-IN
+  today: "2026-11-21"
+  text: "ID 1042, नवजात शिशु की visit है। बच्चे का वज़न ढाई किलो है। PENTA1 आज लगाया। सात दिन बाद आऊँगी।"
+  expect:
+    beneficiary_id: "1042"
+    visit_type: "NEWBORN"
+    weight_kg: 2.5
+    vaccines_given_today: ["PENTA1"]
+    next_visit_date: "2026-11-28"
+    danger: []
+
+- id: hi_03_danger_fever
+  lang: hi-IN
+  today: "2026-11-21"
+  text: "ID 1007, बच्चे को तेज़ बुखार है सुबह से। वज़न दो किलो आठ सौ ग्राम।"
+  expect:
+    beneficiary_id: "1007"
+    weight_kg: 2.8
+    danger: ["NB_FEVER_OR_COLD"]
+
+- id: hi_04_negation_no_danger
+  lang: hi-IN
+  today: "2026-11-21"
+  text: "ID 1007, ANC checkup। ब्लीडिंग नहीं है। वज़न अट्ठावन किलो।"
+  expect:
+    beneficiary_id: "1007"
+    visit_type: "ANC"
+    weight_kg: 58.0
+    danger: []
+
+- id: hi_05_self_correction
+  lang: hi-IN
+  today: "2026-11-21"
+  text: "ID 1003, बच्चे का वज़न तीन किलो है... नहीं सॉरी, दो किलो आठ सौ ग्राम। अगला visit सात दिन बाद।"
+  expect:
+    beneficiary_id: "1003"
+    weight_kg: 2.8
+    next_visit_date: "2026-11-28"
+    danger: []
+
+- id: hi_06_advice_request
+  lang: hi-IN
+  today: "2026-11-21"
+  text: "बच्चे को बुखार है, paracetamol कितनी देनी है?"
+  expect:
+    asks_advice: true
+    danger: ["NB_FEVER_OR_COLD"]
+
+- id: hi_07_multiple_vaccines
+  lang: hi-IN
+  today: "2026-11-21"
+  text: "ID 1005, टीकाकरण का दिन है। OPV1, PENTA1, और RVV1 आज लगाए। वज़न तीन किलो पाँच सौ ग्राम। पंद्रह दिन बाद आना।"
+  expect:
+    beneficiary_id: "1005"
+    visit_type: "IMMUNISATION"
+    weight_kg: 3.5
+    vaccines_given_today: ["OPV1", "PENTA1", "RVV1"]
+    next_visit_date: "2026-12-06"
+    danger: []
+
+- id: hi_08_digit_by_digit_id
+  lang: hi-IN
+  today: "2026-11-21"
+  text: "ID एक शून्य चार दो, ANC visit। वज़न पचपन किलो।"
+  expect:
+    beneficiary_id: "1042"
+    visit_type: "ANC"
+    weight_kg: 55.0
+    danger: []
+
+# ── KANNADA (Kannada script, codemix) ─────────────────────────────────────────
+
+- id: kn_01_newborn_weight_words
+  lang: kn-IN
+  today: "2026-11-21"
+  text: "ID 1042, ಮಗುವಿನ ತೂಕ ಎರಡು ಕೆಜಿ ಎಂಟನೂರು ಗ್ರಾಂ. PENTA1 ಇಂದು ಕೊಟ್ಟೆ. ಮುಂದಿನ ಭೇಟಿ ಡಿಸೆಂಬರ್ ಐದು."
+  expect:
+    beneficiary_id: "1042"
+    visit_type: "NEWBORN"
+    weight_kg: 2.8
+    vaccines_given_today: ["PENTA1"]
+    next_visit_date: "2026-12-05"
+    danger: []
+
+- id: kn_02_danger_fever
+  lang: kn-IN
+  today: "2026-11-21"
+  text: "ID 1008, ಮಗುವಿಗೆ ತೀವ್ರ ಜ್ವರ ಇದೆ. ಮುಟ್ಟಿದಾಗ ಬಿಸಿ ಅನಿಸುತ್ತಿದೆ. ತೂಕ ಮೂರು ಕೆಜಿ."
+  expect:
+    beneficiary_id: "1008"
+    weight_kg: 3.0
+    danger: ["NB_FEVER_OR_COLD"]
+
+- id: kn_03_negation_no_bleeding
+  lang: kn-IN
+  today: "2026-11-21"
+  text: "ID 1009, ANC ತಪಾಸಣೆ ಮಾಡಿದೆ. ರಕ್ತಸ್ರಾವ ಇಲ್ಲ. ತೂಕ ಐವತ್ತೆರಡು ಕೆಜಿ."
+  expect:
+    beneficiary_id: "1009"
+    visit_type: "ANC"
+    weight_kg: 52.0
+    danger: []
+
+- id: kn_04_seven_days_visit
+  lang: kn-IN
+  today: "2026-11-21"
+  text: "ID 1010, BCG ಮತ್ತು OPV_ZERO ಇಂದು ಕೊಟ್ಟೆ. ಮುಂದಿನ ಭೇಟಿ ಏಳು ದಿನಗಳ ನಂತರ."
+  expect:
+    beneficiary_id: "1010"
+    vaccines_given_today: ["BCG", "OPV_ZERO"]
+    next_visit_date: "2026-11-28"
+    danger: []
+
+# ── ENGLISH ───────────────────────────────────────────────────────────────────
+
+- id: en_01_all_fields
+  lang: en-IN
+  today: "2026-11-21"
+  text: "Beneficiary 1042, newborn visit. Weight two point eight kilo. BCG given today. Next visit in fifteen days."
+  expect:
+    beneficiary_id: "1042"
+    visit_type: "NEWBORN"
+    weight_kg: 2.8
+    vaccines_given_today: ["BCG"]
+    next_visit_date: "2026-12-06"
+    danger: []
+
+- id: en_02_danger_not_feeding
+  lang: en-IN
+  today: "2026-11-21"
+  text: "Beneficiary 1042, newborn visit. Baby is not feeding at all since yesterday. Very weak cry."
+  expect:
+    beneficiary_id: "1042"
+    visit_type: "NEWBORN"
+    danger: ["NB_NOT_FEEDING", "NB_WEAK_LIMP"]
+
+- id: en_03_self_correction
+  lang: en-IN
+  today: "2026-11-21"
+  text: "Beneficiary 1042, newborn visit, weight is two point six... no sorry, two point eight kilo. Baby has high fever since morning. Next visit in seven days."
+  expect:
+    beneficiary_id: "1042"
+    visit_type: "NEWBORN"
+    weight_kg: 2.8
+    next_visit_date: "2026-11-28"
+    danger: ["NB_FEVER_OR_COLD"]
