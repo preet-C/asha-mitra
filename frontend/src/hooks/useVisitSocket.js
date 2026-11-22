@@ -243,6 +243,8 @@ export function useVisitSocket({
   }, [connect, enabled]);
 
   const sendStart = useCallback((sampleRate) => {
+    // Open one provider session per visit; later taps only stream another utterance.
+    if (startRateRef.current != null) return;
     startRateRef.current = sampleRate;
     if (wsRef.current?.readyState === WebSocket.OPEN) sendStartFrame(wsRef.current);
   }, [sendStartFrame]);

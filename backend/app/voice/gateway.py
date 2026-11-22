@@ -95,6 +95,7 @@ class GnaniGateway:
         self._tts: GnaniTTS | None = None
         self._session: dict | None = None          # brain session dict
         self._tts_task: asyncio.Task | None = None # current TTS streaming task
+        self._stt_reader_task: asyncio.Task | None = None
         self._barge_active = asyncio.Event()       # set during barge_in cancel
         self._transcript_parts: list[str] = []    # collects STT segments since last commit
         self._transcript_ready = asyncio.Event()  # signals that commit transcript is in
@@ -107,22 +108,15 @@ class GnaniGateway:
     async def run(self, websocket: WebSocket) -> None:
         """Main loop: accept browser messages and orchestrate STT/brain/TTS.
 
-        WHY two concurrent tasks (listener + STT reader): We need to listen to
-        the browser (for audio frames, commit, barge_in) while simultaneously
-        reading Gnani STT events (transcripts). asyncio.gather() runs both.
+        The browser listener runs here. The STT reader starts only after the
+        STT socket connects, so it cannot race ahead and exit before connect.
         """
         self._ws = websocket
         await websocket.accept()
         log.info("Gateway: browser connected")
 
         try:
-            # Run browser-listener and STT-reader concurrently.
-            # Both tasks share self._transcript_parts and self._transcript_ready.
-            await asyncio.gather(
-                self._browser_listener(),
-                self._stt_reader(),
-                return_exceptions=False,
-            )
+            await self._browser_listener()
         except WebSocketDisconnect:
             log.info("Gateway: browser disconnected")
         except Exception as exc:
@@ -140,24 +134,29 @@ class GnaniGateway:
           JSON text: start, commit, barge_in, end
           Binary:    PCM16 audio frames from the microphone
         """
-        async for raw in self._ws.iter_bytes():
-            # Try to parse as JSON text first.
-            # Binary frames are raw audio bytes (no JSON header).
-            if isinstance(raw, bytes):
-                # Try JSON parse — if it fails, treat as audio binary
+        while True:
+            # Read raw ASGI frames so JSON control text and binary audio both survive.
+            message = await self._ws.receive()
+            if message["type"] == "websocket.disconnect":
+                raise WebSocketDisconnect(code=message.get("code", 1000))
+
+            text_frame = message.get("text")
+            if text_frame is not None:
                 try:
-                    msg = json.loads(raw.decode("utf-8"))
-                    await self._handle_json(msg)
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    # It's audio — forward to STT
-                    await self._handle_audio(raw)
-            else:
-                # FastAPI may deliver text frames as str
-                try:
-                    msg = json.loads(raw)
-                    await self._handle_json(msg)
+                    await self._handle_json(json.loads(text_frame))
                 except json.JSONDecodeError:
-                    log.warning("Gateway: unrecognised text frame: %r", raw[:80])
+                    log.warning("Gateway: unrecognised text frame: %r", text_frame[:80])
+                continue
+
+            audio_frame = message.get("bytes")
+            if audio_frame is not None:
+                # Binary control frames are allowed; other binary frames are PCM audio.
+                try:
+                    msg = json.loads(audio_frame.decode("utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    await self._handle_audio(audio_frame)
+                else:
+                    await self._handle_json(msg)
 
     async def _handle_json(self, msg: dict) -> None:
         """Dispatch a JSON control message from the browser."""
@@ -199,6 +198,11 @@ class GnaniGateway:
         """
         lang = msg.get("lang", "hi-IN")
         sample_rate = msg.get("sample_rate", 16000)
+
+        # Keep one brain/STT session across multiple tap-to-talk turns.
+        if self._session is not None and self._stt is not None:
+            log.info("Gateway: duplicate start ignored; session is already active")
+            return
 
         log.info("Gateway: start (lang=%s, rate=%d)", lang, sample_rate)
 
@@ -246,6 +250,9 @@ class GnaniGateway:
                 await self._tts.close()
                 self._tts = None
             return
+
+        # Start reading only after connect() has populated the provider socket.
+        self._stt_reader_task = asyncio.create_task(self._stt_reader())
 
         # Tell browser we're ready
         await self._send_json({"type": "ready"})
@@ -380,11 +387,11 @@ class GnaniGateway:
         from Gnani — we can't block the browser message loop waiting for them.
         This task collects transcript segments and signals commit() when ready.
         """
-        # Wait until STT is connected (start message sets self._stt)
-        while self._stt is None:
-            await asyncio.sleep(0.05)
+        stt = self._stt
+        if stt is None:
+            return
 
-        async for event in self._stt.listen():
+        async for event in stt.listen():
             etype = event.get("type", "")
 
             if etype == "transcript":
@@ -591,8 +598,15 @@ class GnaniGateway:
 
             # Reconnect STT with new language header
             if self._stt:
+                if self._stt_reader_task and not self._stt_reader_task.done():
+                    self._stt_reader_task.cancel()
+                    try:
+                        await self._stt_reader_task
+                    except asyncio.CancelledError:
+                        pass
                 self._stt._lang = new_lang
                 await self._stt.reconnect()
+                self._stt_reader_task = asyncio.create_task(self._stt_reader())
 
         if new_speed is not None:
             # Store speed in session so _play_say_action picks it up
@@ -652,6 +666,13 @@ class GnaniGateway:
 
     async def _cleanup(self) -> None:
         """Close all sockets cleanly when session ends."""
+        if self._stt_reader_task and not self._stt_reader_task.done():
+            self._stt_reader_task.cancel()
+            try:
+                await self._stt_reader_task
+            except asyncio.CancelledError:
+                pass
+        self._stt_reader_task = None
         if self._tts_task and not self._tts_task.done():
             self._tts_task.cancel()
         if self._stt:
