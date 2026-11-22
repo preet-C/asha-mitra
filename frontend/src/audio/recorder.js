@@ -83,6 +83,11 @@ export class AudioRecorder {
       }
     };
 
+    // Start the server session with the real rate before the worklet emits audio.
+    if (this._onReady) {
+      this._onReady(actualRate);
+    }
+
     // Connect the graph: mic source → worklet (we don't connect to speakers
     // because we don't want mic playback, only capture).
     this._sourceNode.connect(this._workletNode);
@@ -96,11 +101,6 @@ export class AudioRecorder {
     // signal from the worklet output (it outputs silence; PCM is sent via port).
     this._workletNode.connect(context.destination);
 
-    // Tell the caller the actual sample rate so they can include it in the
-    // WebSocket "start" message to the backend.
-    if (this._onReady) {
-      this._onReady(actualRate);
-    }
   }
 
   /**
@@ -113,11 +113,11 @@ export class AudioRecorder {
     // Disconnect audio graph nodes first.
     if (this._workletNode) {
       this._workletNode.port.onmessage = null;
-      try { this._workletNode.disconnect(); } catch (_) {}
+      try { this._workletNode.disconnect(); } catch { /* Already disconnected. */ }
       this._workletNode = null;
     }
     if (this._sourceNode) {
-      try { this._sourceNode.disconnect(); } catch (_) {}
+      try { this._sourceNode.disconnect(); } catch { /* Already disconnected. */ }
       this._sourceNode = null;
     }
 

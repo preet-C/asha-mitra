@@ -25,6 +25,7 @@ from app.brain.danger import scan_danger
 from app.brain.normalize import resolve_next_visit
 from app.brain.speak import speak, build_summary
 from app.repo import memory_repo
+from app.date_utils import today_in_india
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ _READBACK_FIELDS = [
 ]
 
 
-def new_session(lang: str = "en-IN") -> dict:
+def new_session(lang: str = "en-IN", repo=None) -> dict:
     """Create a fresh session dict for a new visit.
 
     Call this when the WebSocket connection opens (before the first "start" event).
@@ -76,6 +77,7 @@ def new_session(lang: str = "en-IN") -> dict:
         "flags": [],           # danger sign IDs found so far this visit
         "asked": 0,            # number of questions asked (cap at 5, plan step 5)
         "beneficiary": None,   # loaded from repo once ID is confirmed
+        "repo": repo or memory_repo,  # keep reads and writes on the same store
         "not_understood": 0,   # consecutive "I didn't understand" count
         "last_said_key": None, # for "repeat" intent
         "_last_variant": {},   # anti-repeat tracking for Tier B templates
@@ -110,7 +112,7 @@ def handle(session: dict, event: dict) -> list[dict]:
 def _handle(session: dict, event: dict) -> list[dict]:
     etype = event.get("type")
     lang = session.get("lang", "en-IN")
-    today = date.today()
+    today = today_in_india()
 
     # ── start event ──
     if etype == "start":
@@ -198,7 +200,8 @@ def _handle_capture(session: dict, text: str, today: date) -> list[dict]:
 
     # If ID just appeared, try to load beneficiary from repo
     if session["draft"].get("beneficiary_id") and not session["beneficiary"]:
-        ben = memory_repo.get_beneficiary(session["draft"]["beneficiary_id"])
+        repo = session.get("repo") or memory_repo
+        ben = repo.get_beneficiary(session["draft"]["beneficiary_id"])
         if ben is None:
             # ID not found — ask worker to check
             actions.append(_say(
@@ -318,7 +321,8 @@ def _save_visit(session: dict, transcript: str, today: date) -> list[dict]:
         "flagged": bool(session["flags"]),
     }
 
-    visit_id = memory_repo.save_visit(record, transcript)
+    repo = session.get("repo") or memory_repo
+    visit_id = repo.save_visit(record, transcript)
     session["state"] = STATE_DONE
     session["draft"]["_visit_id"] = visit_id  # store for later reference
 

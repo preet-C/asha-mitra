@@ -1,322 +1,516 @@
-// frontend/src/App.jsx
-// WHY: Root component. State machine: pick_language → session.
-// ?mock=1 in URL → uses fake WebSocket (no backend needed for UI demo).
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AudioRecorder } from "./audio/recorder";
-import { AudioPlayer }   from "./audio/player";
+import { AudioPlayer } from "./audio/player";
 import { useVisitSocket } from "./hooks/useVisitSocket";
 import "./App.css";
 
-const params     = new URLSearchParams(window.location.search);
-const IS_MOCK    = params.get("mock") === "1";
+const LANGUAGES = [
+  { code: "hi-IN", label: "हिन्दी", english: "Hindi" },
+  { code: "kn-IN", label: "ಕನ್ನಡ", english: "Kannada" },
+  { code: "en-IN", label: "English", english: "English" },
+];
 
-// Language display labels
-const LANG_LABEL = { "hi-IN": "हिन्दी", "kn-IN": "ಕನ್ನಡ", "en-IN": "EN" };
-const LANG_FLAG  = { "hi-IN": "🇮🇳",    "kn-IN": "🇮🇳",    "en-IN": "🌐" };
+const MOCK_FOLLOWUPS = [
+  {
+    visit_id: "demo-visit-1",
+    beneficiary_id: "1001",
+    name: "Demo beneficiary",
+    village: "Sample village",
+    kind: "child",
+    next_visit_date: "2026-11-29",
+    flagged: true,
+    danger_flags: ["preview"],
+  },
+];
 
-// ── Language picker screen ──────────────────────────────────────
-function LanguagePicker({ onSelect }) {
+function BrandMark() {
   return (
-    <div className="lang-picker">
-      <div className="lang-picker__title">ASHA Mitra</div>
-      <div className="lang-picker__sub">आशा मित्र · ಆಶಾ ಮಿತ್ರ</div>
-      <div className="lang-picker__sub" style={{ fontSize: 14, marginBottom: 8 }}>
-        Select your language to begin
-      </div>
-      {[
-        ["hi-IN", "हिन्दी",  "🇮🇳"],
-        ["kn-IN", "ಕನ್ನಡ",  "🇮🇳"],
-        ["en-IN", "English", "🌐"],
-      ].map(([code, label, flag]) => (
-        <button key={code} className="lang-btn" onClick={() => onSelect(code)}>
-          <span className="lang-btn__flag">{flag}</span>
-          {label}
-        </button>
-      ))}
-    </div>
+    <span className="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" fill="none">
+        <path d="M7 21c0-8 6-14 18-15-1 12-7 18-15 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+        <path d="M8 25c3-6 7-10 13-14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+      </svg>
+    </span>
   );
 }
 
-// ── Danger banner ───────────────────────────────────────────────
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3m-4 0h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function LanguagePicker({ lang, onLanguageChange, onLiveStart, onDemoStart }) {
+  return (
+    <main className="welcome-page">
+      <div className="welcome-layout">
+        <section className="welcome-copy">
+          <div className="brand-lockup">
+            <BrandMark />
+            <div>
+              <div className="brand-name">ASHA Mitra</div>
+              <div className="brand-subtitle">A voice companion for home visits</div>
+            </div>
+          </div>
+
+          <p className="eyebrow">FIELD NOTES, MADE EASIER</p>
+          <h1>Speak naturally.<br /><span>Keep a clear record.</span></h1>
+          <p className="welcome-description">
+            Capture a visit in the worker’s own words, review the details together, and save only after confirmation.
+          </p>
+
+          <div className="process-list" aria-label="Visit steps">
+            <div className="process-step"><span>01</span><div><strong>Speak</strong><small>Share the home-visit note</small></div></div>
+            <div className="process-step"><span>02</span><div><strong>Review</strong><small>Check the record and flags</small></div></div>
+            <div className="process-step"><span>03</span><div><strong>Confirm</strong><small>Save after the read-back</small></div></div>
+          </div>
+        </section>
+
+        <section className="start-card" aria-labelledby="start-title">
+          <div className="start-card__topline">GET STARTED</div>
+          <h2 id="start-title">Choose a language</h2>
+          <p className="muted-copy">You can speak in Hindi, Kannada, English, or mix them naturally.</p>
+
+          <div className="language-options" role="group" aria-label="Choose language">
+            {LANGUAGES.map((item) => (
+              <button
+                type="button"
+                key={item.code}
+                className={`language-option ${lang === item.code ? "language-option--selected" : ""}`}
+                aria-pressed={lang === item.code}
+                onClick={() => onLanguageChange(item.code)}
+              >
+                <span className="language-option__native">{item.label}</span>
+                <span className="language-option__english">{item.english}</span>
+                <span className="language-option__check" aria-hidden="true">{lang === item.code ? "✓" : ""}</span>
+              </button>
+            ))}
+          </div>
+
+          <button type="button" className="button button--primary button--wide" onClick={onLiveStart}>
+            Start a live visit <span aria-hidden="true">→</span>
+          </button>
+          <button type="button" className="button button--secondary button--wide" onClick={onDemoStart}>
+            Preview the demo
+          </button>
+          <p className="demo-note">The preview uses fictional data and does not access your microphone or voice services.</p>
+        </section>
+      </div>
+      <div className="welcome-footer">ASHA Mitra <span>•</span> Visit notes stay in your configured local or database store</div>
+    </main>
+  );
+}
+
+function StatusPill({ status, mock }) {
+  const labels = {
+    idle: "Not connected",
+    connecting: "Connecting",
+    connected: "Connected · ready to begin",
+    starting: "Starting voice session",
+    ready: "Voice session ready",
+    closed: "Session ended",
+    error: "Needs attention",
+  };
+  return (
+    <span className={`status-pill status-pill--${status}`}>
+      <span className="status-pill__dot" />
+      {mock ? "Demo preview" : (labels[status] || "Connecting")}
+    </span>
+  );
+}
+
 function DangerBanner({ signs }) {
   if (!signs.length) return null;
+  const namedSigns = signs.map((sign) => sign.label).filter(Boolean);
   return (
-    <div className="danger-banner">
-      <div className="danger-banner__title">⚠ Refer to PHC now</div>
-      {signs.map((s) => (
-        <div key={s.id} className="danger-banner__sign">• {s.label}</div>
-      ))}
+    <section className="safety-banner" role="alert">
+      <span className="safety-banner__symbol" aria-hidden="true">!</span>
+      <div>
+        <strong>Safety flag recorded</strong>
+        <p>{namedSigns.length ? namedSigns.join(" · ") : `${signs.length} sign${signs.length === 1 ? "" : "s"} marked for review`}</p>
+      </div>
+    </section>
+  );
+}
+
+function FieldRow({ label, value, uncertain, className = "" }) {
+  const empty = value == null || value === "";
+  return (
+    <div className={`field-row ${uncertain ? "field-row--uncertain" : ""} ${className}`}>
+      <dt>{label}</dt>
+      <dd>
+        <span className={empty ? "field-row__empty" : ""}>{empty ? "Not mentioned" : value}</span>
+        {uncertain && <span className="review-tag">Please confirm</span>}
+      </dd>
     </div>
   );
 }
 
-// ── Record card ─────────────────────────────────────────────────
-function RecordCard({ draft, uncertain }) {
-  const unc = new Set(uncertain || []);
+function displayArray(value, emptyText = "Not mentioned") {
+  if (!Array.isArray(value) || value.length === 0) return emptyText;
+  return value.join(", ");
+}
 
-  function row(label, field, display) {
-    const val     = draft[field];
-    const hasVal  = val != null && val !== "" && (!Array.isArray(val) || val.length > 0);
-    const isUnc   = unc.has(field);
-    const cls     = hasVal ? (isUnc ? "record-card__row--uncertain" : "record-card__row--ok") : "";
-    return (
-      <div key={field} className={`record-card__row ${cls}`}>
-        <span className="record-card__label">{label}</span>
-        {hasVal ? (
-          <>
-            <span className="record-card__value">{display(val)}</span>
-            {isUnc
-              ? <span className="record-card__badge record-card__badge--warn">check</span>
-              : <span className="record-card__badge record-card__badge--ok">✓</span>
-            }
-          </>
-        ) : (
-          <span className="record-card__value record-card__value--empty">—</span>
-        )}
+function VisitRecord({ draft, uncertain, savedId }) {
+  const needsReview = new Set(uncertain || []);
+  const weight = draft.weight_kg == null ? null : `${draft.weight_kg} kg`;
+  const nextVisit = formatDate(draft.next_visit_date) || null;
+  const vaccineDue = draft.vaccines_due == null
+    ? null
+    : displayArray(draft.vaccines_due, "None due");
+
+  return (
+    <section className="surface record-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">STRUCTURED NOTE</p>
+          <h2>Visit record</h2>
+        </div>
+        <span className={`record-state ${savedId ? "record-state--saved" : ""}`}>
+          <span className="record-state__dot" />{savedId ? "Saved" : "In progress"}
+        </span>
       </div>
-    );
+
+      <dl className="record-fields">
+        <FieldRow label="Beneficiary ID" value={draft.beneficiary_id} uncertain={needsReview.has("beneficiary_id")} />
+        <FieldRow label="Visit type" value={draft.visit_type} uncertain={needsReview.has("visit_type")} />
+        <FieldRow label="Weight" value={weight} uncertain={needsReview.has("weight_kg")} />
+        <FieldRow label="Vaccines given" value={displayArray(draft.vaccines_given_today)} uncertain={needsReview.has("vaccines_given_today")} />
+        <FieldRow label="Vaccines due" value={vaccineDue} uncertain={needsReview.has("vaccines_due")} />
+        <FieldRow label="Next visit" value={nextVisit} uncertain={needsReview.has("next_visit_date")} />
+      </dl>
+
+      <div className="record-footnote">
+        <span aria-hidden="true">i</span>
+        Not-mentioned details stay blank. Check uncertain values before confirming by voice.
+      </div>
+      {savedId && <div className="saved-confirmation" role="status">Visit saved <span>·</span> {savedId}</div>}
+    </section>
+  );
+}
+
+function ConversationPanel({ transcript, agentText, status, mock, latencyMs, savedId, btnState, onPress, onRelease, disabled }) {
+  const buttonLabel = btnState === "recording"
+    ? "Release to send"
+    : btnState === "speaking"
+      ? "Press to interrupt"
+      : "Press and hold to speak";
+
+  return (
+    <section className="surface conversation-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">VOICE SESSION</p>
+          <h2>Conversation</h2>
+        </div>
+        {latencyMs != null && <span className="latency-tag">First audio {(latencyMs / 1000).toFixed(1)}s</span>}
+      </div>
+
+      <div className="conversation-turn">
+        <span className="turn-label">LAST HEARD</span>
+        <p>{transcript || <span className="conversation-placeholder">Your words will appear here after you speak.</span>}</p>
+      </div>
+      <div className="conversation-turn conversation-turn--agent">
+        <span className="turn-label">ASHA MITRA</span>
+        <p>{agentText || <span className="conversation-placeholder">The read-back and next question will appear here.</span>}</p>
+      </div>
+
+      {mock ? (
+        <div className="preview-running" role="status">
+          <span className="preview-running__dot" />
+          Scripted preview is running with fictional visit details.
+        </div>
+      ) : (
+        <div className="voice-control">
+          <button
+            type="button"
+            className={`mic-button mic-button--${btnState}`}
+            disabled={disabled || (status !== "connected" && status !== "ready")}
+            aria-label={buttonLabel}
+            aria-pressed={btnState === "recording"}
+            onPointerDown={(event) => {
+              if (disabled) return;
+              event.preventDefault();
+              event.currentTarget.setPointerCapture?.(event.pointerId);
+              onPress();
+            }}
+            onPointerUp={onRelease}
+            onPointerCancel={onRelease}
+            onKeyDown={(event) => {
+              if ((event.key === " " || event.key === "Enter") && !event.repeat) {
+                event.preventDefault();
+                onPress();
+              }
+            }}
+            onKeyUp={(event) => {
+              if (event.key === " " || event.key === "Enter") onRelease();
+            }}
+          >
+            <MicIcon />
+          </button>
+          <strong>{buttonLabel}</strong>
+          <span>Hold while speaking, then release to send.</span>
+        </div>
+      )}
+
+      {savedId && <div className="next-visit-prompt">This visit is complete. Start another when you’re ready.</div>}
+    </section>
+  );
+}
+
+function FollowUpList({ mock }) {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState("");
+
+  const fetchFollowups = useCallback(async (signal) => {
+    if (mock) return MOCK_FOLLOWUPS;
+    const response = await fetch("/api/followups", { signal });
+    if (!response.ok) throw new Error("Follow-up request failed");
+    return response.json();
+  }, [mock]);
+
+  const loadFollowups = useCallback(() => {
+    setItems(null);
+    setError("");
+    fetchFollowups()
+      .then(setItems)
+      .catch(() => setError("Follow-ups could not be loaded. Check the backend connection and try again."));
+  }, [fetchFollowups]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.resolve()
+      .then(() => fetchFollowups(controller.signal))
+      .then((result) => {
+        if (!controller.signal.aborted) setItems(result);
+      })
+      .catch((requestError) => {
+        if (!controller.signal.aborted && requestError.name !== "AbortError") {
+          setError("Follow-ups could not be loaded. Check the backend connection and try again.");
+        }
+      });
+    return () => controller.abort();
+  }, [fetchFollowups]);
+
+  if (error) {
+    return <div className="empty-state empty-state--error"><p>{error}</p><button className="button button--secondary" onClick={() => loadFollowups()}>Try again</button></div>;
+  }
+  if (items === null) return <div className="empty-state">Loading follow-ups…</div>;
+  if (items.length === 0) {
+    return <div className="empty-state"><span className="empty-state__icon">✓</span><strong>No follow-ups yet</strong><p>Upcoming and flagged visits will appear here.</p></div>;
   }
 
   return (
-    <div className="record-card">
-      <div className="record-card__header">Visit Record</div>
-      {row("ID",           "beneficiary_id",      (v) => v)}
-      {row("Weight",       "weight_kg",            (v) => `${v} kg`)}
-      {row("Vaccines given","vaccines_given_today", (v) => Array.isArray(v) ? v.join(", ") : v)}
-      {row("Vaccines due", "vaccines_due",          (v) => Array.isArray(v) && v.length ? v.join(", ") : "none")}
-      {row("Next visit",   "next_visit_date",       (v) => v)}
-    </div>
-  );
-}
-
-// ── Latency badge ───────────────────────────────────────────────
-function LatencyBadge({ ms }) {
-  if (ms == null) return null;
-  return <span className="latency-badge">⚡ {(ms / 1000).toFixed(1)}s</span>;
-}
-
-// ── Follow-up list ──────────────────────────────────────────────
-function FollowUpList() {
-  const [items, setItems] = useState(null);
-  const [err,   setErr]   = useState(false);
-
-  // WHY useEffect: fetch once when this component mounts (tab is opened)
-  useEffect(() => {
-    fetch("/api/followups")
-      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(setItems)
-      .catch(() => setErr(true));
-  }, []);
-
-  if (err)            return <div className="followup-loading">Could not load follow-ups.</div>;
-  if (items === null) return <div className="followup-loading">Loading...</div>;
-  if (!items.length)  return <div className="followup-loading">No upcoming visits.</div>;
-
-  return (
     <div className="followup-list">
-      {items.map((b) => {
-        const flagged = b.last_flags && b.last_flags.length > 0;
+      {items.map((item) => {
+        const flagged = Boolean(item.flagged || item.danger_flags?.length);
         return (
-          <div key={b.id} className={`followup-card ${flagged ? "followup-card--flagged" : ""}`}>
-            <div className="followup-card__icon">{flagged ? "⚠️" : "👶"}</div>
-            <div className="followup-card__info">
-              <div className="followup-card__name">{b.name} <span style={{ fontWeight: 400, fontSize: 13, color: "#888" }}>#{b.id}</span></div>
-              <div className="followup-card__meta">{b.village} · {b.kind}</div>
-              {flagged && <div className="followup-card__meta" style={{ color: "var(--danger)", fontWeight: 600 }}>Danger flag on record</div>}
-              <div className="followup-card__date">📅 {b.next_visit_date || "Date not set"}</div>
+          <article className={`followup-card ${flagged ? "followup-card--flagged" : ""}`} key={item.visit_id || item.beneficiary_id}>
+            <span className={`followup-card__marker ${flagged ? "followup-card__marker--flagged" : ""}`} aria-hidden="true" />
+            <div className="followup-card__body">
+              <div className="followup-card__title-row">
+                <h3>{item.name || "Synthetic beneficiary"}</h3>
+                <span className="followup-card__id">#{item.beneficiary_id}</span>
+              </div>
+              <p>{item.village || "Village not listed"} <span>·</span> {item.kind || "Visit"}</p>
+              {flagged && <span className="followup-flag">Flagged visit · review record</span>}
             </div>
-          </div>
+            <div className="followup-card__date">
+              <span>NEXT VISIT</span>
+              <strong>{formatDate(item.next_visit_date) || "Not set"}</strong>
+            </div>
+          </article>
         );
       })}
     </div>
   );
 }
 
-// ── Hold button ─────────────────────────────────────────────────
-function HoldButton({ onPress, onRelease, state }) {
-  const icon  = state === "recording" ? "🎙" : state === "speaking" ? "🔊" : "🎙";
-  const label = state === "recording" ? "Release to send"
-              : state === "speaking"  ? "Tap to interrupt"
-              : "Hold to speak";
-  return (
-    <div className="hold-btn-wrap">
-      <button
-        className={`hold-btn hold-btn--${state}`}
-        onPointerDown={onPress}
-        onPointerUp={onRelease}
-        onPointerCancel={onRelease}
-      >
-        {icon}
-      </button>
-      <div className="hold-btn__label">{label}</div>
-    </div>
-  );
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
-// ── Main App ────────────────────────────────────────────────────
+function statusHint(status) {
+  if (status === "connecting") return "Connecting to the backend…";
+  if (status === "starting") return "Opening the voice session…";
+  if (status === "connected") return "Connected. Press the microphone to begin.";
+  if (status === "ready") return "Voice session ready.";
+  if (status === "error") return "The session needs attention.";
+  return "Choose a language to begin.";
+}
+
 export default function App() {
-  const [screen,   setScreen]   = useState("pick_language");
-  const [lang,     setLang]     = useState("en-IN");
-  const [tab,      setTab]      = useState("visit");
+  const [screen, setScreen] = useState("welcome");
+  const [lang, setLang] = useState("en-IN");
+  const [demoMode, setDemoMode] = useState(false);
+  const [tab, setTab] = useState("visit");
   const [btnState, setBtnState] = useState("idle");
-
+  const [micError, setMicError] = useState("");
   const recorderRef = useRef(null);
-  const playerRef   = useRef(null);
+  const playerRef = useRef(null);
 
-  // TTS callbacks — called by useVisitSocket when audio arrives
   const handleTtsStart = useCallback(({ sampleRate }) => {
-    playerRef.current?.close?.();
+    playerRef.current?.close();
     playerRef.current = new AudioPlayer();
-    playerRef.current._rate = sampleRate;
+    playerRef.current._rate = sampleRate || 24000;
     setBtnState("speaking");
   }, []);
-
-  const handleTtsChunk = useCallback((buf) => {
-    playerRef.current?.enqueue(buf, playerRef.current._rate || 24000);
+  const handleTtsChunk = useCallback((chunk) => {
+    playerRef.current?.enqueue(chunk, playerRef.current._rate || 24000);
   }, []);
-
-  const handleTtsEnd = useCallback(() => {
-    setBtnState("idle");
-  }, []);
+  const handleTtsEnd = useCallback(() => setBtnState("idle"), []);
 
   const sessionActive = screen === "session";
-
-  const {
-    status, transcript, draft, uncertain,
-    alerts, latencyMs, savedId, currentLang,
-    sendAudio, sendCommit, sendBargeIn,
-  } = useVisitSocket({
+  const socket = useVisitSocket({
     lang,
-    mock:     IS_MOCK,
-    enabled:  sessionActive,
-    onTtsStart: sessionActive ? handleTtsStart : null,
-    onTtsChunk: sessionActive ? handleTtsChunk : null,
-    onTtsEnd:   sessionActive ? handleTtsEnd   : null,
+    mock: demoMode,
+    enabled: sessionActive,
+    onTtsStart: demoMode ? null : handleTtsStart,
+    onTtsChunk: demoMode ? null : handleTtsChunk,
+    onTtsEnd: demoMode ? null : handleTtsEnd,
   });
 
-  // Hold button: press = start recording, release = commit
+  function startSession(useDemo) {
+    setDemoMode(useDemo);
+    setMicError("");
+    setBtnState("idle");
+    setTab("visit");
+    setScreen("session");
+  }
+
   async function handlePress() {
+    if (demoMode || btnState === "recording") return;
+    setMicError("");
     if (btnState === "speaking") {
-      playerRef.current?.stop?.();
-      sendBargeIn();
+      playerRef.current?.stop();
+      socket.sendBargeIn();
     }
-    recorderRef.current?.stop?.();
-    const rec = new AudioRecorder();
-    recorderRef.current = rec;
+
+    recorderRef.current?.stop();
+    const recorder = new AudioRecorder();
+    recorderRef.current = recorder;
     setBtnState("recording");
     try {
-      await rec.start((chunk) => sendAudio(chunk));
-    } catch (err) {
-      console.error("[app] recorder:", err);
+      await recorder.start(
+        (chunk) => socket.sendAudio(chunk),
+        (sampleRate) => socket.sendStart(sampleRate),
+      );
+    } catch (error) {
+      recorder.stop();
+      recorderRef.current = null;
       setBtnState("idle");
+      setMicError(error.name === "NotAllowedError"
+        ? "Microphone access was blocked. Allow it for this site, then try again."
+        : "The microphone could not start. Check the device and try again.");
     }
   }
 
   function handleRelease() {
-    recorderRef.current?.stop?.();
+    if (btnState !== "recording") return;
+    recorderRef.current?.stop();
     recorderRef.current = null;
-    if (btnState === "recording") {
-      setBtnState("idle");
-      sendCommit();
-    }
+    setBtnState("idle");
+    socket.sendCommit();
   }
 
-  function handleLanguageSelect(selectedLang) {
-    setLang(selectedLang);
-    setScreen("session");
+  function startNewVisit() {
+    recorderRef.current?.stop();
+    playerRef.current?.close();
+    setMicError("");
+    setBtnState("idle");
+    socket.reconnect();
   }
 
-  // Status text shown when no transcript yet
-  function statusHint() {
-    if (savedId)                 return "✅ Visit saved";
-    if (status === "connecting") return "Connecting...";
-    if (status === "error")      return "⚠ Connection error — refresh to retry";
-    return "Tap and hold the button, then speak";
+  if (!sessionActive) {
+    return (
+      <LanguagePicker
+        lang={lang}
+        onLanguageChange={setLang}
+        onLiveStart={() => startSession(false)}
+        onDemoStart={() => startSession(true)}
+      />
+    );
   }
 
-  // ── Language picker screen
-  if (screen === "pick_language") {
-    return <LanguagePicker onSelect={handleLanguageSelect} />;
-  }
+  const activeLanguage = LANGUAGES.find((item) => item.code === socket.currentLang) || LANGUAGES[2];
+  const canRecord = !demoMode && !micError && !socket.error;
 
-  // ── Session screen
   return (
-    <div className="app-outer">
-      <div className="app-shell">
+    <div className="app-page">
+      <header className="app-header">
+        <div className="brand-lockup brand-lockup--compact">
+          <BrandMark />
+          <div><div className="brand-name">ASHA Mitra</div><div className="brand-subtitle">Home-visit voice notes</div></div>
+        </div>
+        <div className="app-header__actions">
+          <StatusPill status={socket.status} mock={demoMode} />
+          <button className="text-button" type="button" onClick={() => setScreen("welcome")}>Change language</button>
+        </div>
+      </header>
 
-        {/* Top bar */}
-        <div className="top-bar">
-          <span className="top-bar__title">ASHA Mitra</span>
-          <div className="top-bar__right">
-            <LatencyBadge ms={latencyMs} />
-            <span className="lang-chip">
-              {LANG_FLAG[currentLang] || "🌐"} {LANG_LABEL[currentLang] || currentLang}
-            </span>
+      <main className="workspace">
+        {demoMode && <div className="demo-banner"><span>DEMO PREVIEW</span> Fictional data only · no microphone or provider calls</div>}
+        <div className="workspace-heading">
+          <div>
+            <p className="eyebrow">{tab === "visit" ? "HOME VISIT" : "FIELDWORK OVERVIEW"}</p>
+            <h1>{tab === "visit" ? "Visit workspace" : "Follow-up list"}</h1>
+            <p className="workspace-heading__description">{tab === "visit" ? statusHint(socket.status) : "Upcoming visits and records marked for review."}</p>
           </div>
+          <div className="language-chip"><span className="language-chip__dot" />{activeLanguage.english}</div>
         </div>
 
-        {/* Danger banner — sticky below top bar */}
-        <DangerBanner signs={alerts} />
+        {socket.error && (
+          <section className="connection-alert" role="alert">
+            <div className="connection-alert__icon">!</div>
+            <div className="connection-alert__body"><strong>Voice session unavailable</strong><p>{socket.error}</p></div>
+            <button type="button" className="button button--secondary" onClick={socket.reconnect}>Retry connection</button>
+          </section>
+        )}
+        {micError && (
+          <section className="connection-alert connection-alert--mic" role="alert">
+            <div className="connection-alert__icon">!</div>
+            <div className="connection-alert__body"><strong>Microphone unavailable</strong><p>{micError}</p></div>
+            <button type="button" className="button button--secondary" onClick={() => setMicError("")}>Dismiss</button>
+          </section>
+        )}
 
-        {/* Scrollable content */}
-        <div className="scroll-area">
-          {tab === "visit" ? (
-            <>
-              {/* What the agent last heard */}
-              <div className="transcript-box">
-                <div className="transcript-box__label">Last heard</div>
-                <div className="transcript-box__text">
-                  {transcript
-                    ? `"${transcript}"`
-                    : <span className="transcript-box__hint">{statusHint()}</span>
-                  }
-                </div>
-              </div>
+        <DangerBanner signs={socket.alerts} />
 
-              {/* Visit record card */}
-              <RecordCard draft={draft} uncertain={uncertain} />
-
-              {/* Saved confirmation */}
-              {savedId && <div className="saved-badge">✅ Visit saved — ID {savedId}</div>}
-            </>
-          ) : (
-            <FollowUpList />
-          )}
-        </div>
-
-        {/* Mic button — fixed above tab bar */}
-        {tab === "visit" && (
-          <div className="btn-area">
-            <HoldButton
+        {tab === "visit" ? (
+          <div className="workspace-grid">
+            <VisitRecord draft={socket.draft} uncertain={socket.uncertain} savedId={socket.savedId} />
+            <ConversationPanel
+              transcript={socket.transcript}
+              agentText={socket.agentText}
+              status={socket.status}
+              mock={demoMode}
+              latencyMs={socket.latencyMs}
+              savedId={socket.savedId}
+              btnState={btnState}
               onPress={handlePress}
               onRelease={handleRelease}
-              state={btnState}
+              disabled={!canRecord}
             />
           </div>
-        )}
+        ) : <FollowUpList mock={demoMode} />}
 
-        {/* Tab bar */}
-        <div className="tab-bar">
-          {[["visit", "🏠 Visit"], ["followups", "📋 Follow-ups"]].map(([id, label]) => (
-            <button
-              key={id}
-              className={`tab-btn ${tab === id ? "tab-btn--active" : ""}`}
-              onClick={() => setTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {socket.savedId && <button type="button" className="button button--primary new-visit-button" onClick={startNewVisit}>Start another visit <span aria-hidden="true">→</span></button>}
+      </main>
 
-        {/* Dev hint */}
-        {IS_MOCK && (
-          <div style={{ position: "fixed", top: 60, right: 8, fontSize: 11, color: "rgba(255,255,255,0.6)", zIndex: 30, background: "var(--brand)", padding: "2px 8px", borderRadius: 8 }}>
-            MOCK
-          </div>
-        )}
-
-      </div>
+      <nav className="bottom-nav" aria-label="Main navigation">
+        <button type="button" className={tab === "visit" ? "bottom-nav__item bottom-nav__item--active" : "bottom-nav__item"} aria-current={tab === "visit" ? "page" : undefined} onClick={() => setTab("visit")}>
+          <span aria-hidden="true">01</span>Visit
+        </button>
+        <button type="button" className={tab === "followups" ? "bottom-nav__item bottom-nav__item--active" : "bottom-nav__item"} aria-current={tab === "followups" ? "page" : undefined} onClick={() => setTab("followups")}>
+          <span aria-hidden="true">02</span>Follow-ups
+        </button>
+      </nav>
     </div>
   );
 }

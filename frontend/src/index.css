@@ -1,54 +1,44 @@
-/* index.css — global resets for ASHA Mitra.
-   WHY: Vite's default has dark-mode media queries and narrow centering.
-   We need a full-screen mobile layout on any device. */
-
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 :root {
-  --brand:   #1a6b3c;   /* deep green — health/trust */
-  --brand2:  #218a4e;   /* lighter green for buttons */
-  --danger:  #c0392b;   /* red — danger banners */
-  --warn:    #f39c12;   /* amber — uncertain fields */
-  --ok:      #27ae60;   /* confirmed fields */
-  --bg:      #f5f7f5;   /* off-white page bg */
-  --card:    #ffffff;
-  --text:    #1a1a1a;
-  --text2:   #555;
-  --border:  #d8ddd8;
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-}
-
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  background: var(--bg);
-  font-family: var(--sans);
-  font-size: 16px;
-  color: var(--text);
+  font-family: "Aptos", "Segoe UI", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  /* WHY: prevent dark mode — the app has its own colour system */
+  -moz-osx-font-smoothing: grayscale;
   color-scheme: light;
+  --green-800: #164e3a;
+  --green-700: #2d704b;
+  --ink: #1d3027;
+  --muted: #748178;
+  --page: #f5f7f3;
+  --display: "Aptos Display", "Segoe UI", system-ui, sans-serif;
 }
 
+html,
+body,
 #root {
   width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
   min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
+  background: var(--page);
+  color: var(--ink);
 }
 
-/* WHY: pulse animation for mic button while recording.
-   Cannot be in inline styles — React doesn't support @keyframes. */
-@keyframes pulse-ring {
-  0%   { transform: scale(1);   opacity: 0.7; }
-  70%  { transform: scale(1.4); opacity: 0.1; }
-  100% { transform: scale(1.5); opacity: 0;   }
+button {
+  font-family: inherit;
 }
 
-@keyframes flash {
-  0%   { background: #fff9c4; }
-  100% { background: inherit; }
+::selection {
+  background: #d7e9d9;
+  color: #163d2c;
 }

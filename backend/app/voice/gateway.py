@@ -24,15 +24,16 @@
 import asyncio
 import json
 import logging
-import os
 import time
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from app.config import get_settings
 from app.brain.dialogue import handle, new_session
 from app.brain.speak import speak
+from app.brain.templates import get_danger_sign_label
 from app.voice.gnani_stt import GnaniSTT
-from app.voice.gnani_tts import GnaniTTS
+from app.voice.gnani_tts import GnaniTTS, GnaniTTSRequestError
 from app.voice.tts_cache import get_cached
 
 log = logging.getLogger(__name__)
@@ -50,6 +51,37 @@ _TTS_SAMPLE_RATE = 24000
 _SPLIT_MIN_CHARS = 60
 
 
+def _http_status(exc: Exception) -> int | None:
+    """Read a WebSocket handshake status without logging headers or secrets."""
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    return status if isinstance(status, int) else None
+
+
+def _stt_connection_message(exc: Exception) -> str:
+    status = _http_status(exc)
+    if status in (401, 403):
+        return f"Gnani rejected the STT connection (HTTP {status}). Check that the key is active and the account has Prisma STT access."
+    if status == 429:
+        return "Gnani STT is rate-limited or out of quota (HTTP 429). Check the account limits and retry."
+    if status in (400, 404, 422):
+        return f"Gnani rejected the STT settings (HTTP {status}). Check the selected language and Prisma access."
+    return f"Speech recognition could not connect ({type(exc).__name__}). Check network access and Gnani STT access, then retry."
+
+
+def _tts_failure_message(exc: Exception) -> str:
+    status = _http_status(exc)
+    if status in (401, 403):
+        return f"Gnani rejected the TTS connection (HTTP {status}). Check that the key is active and the account has Timbre access."
+    if status == 429:
+        return "Gnani TTS is rate-limited or out of quota (HTTP 429). Check the account limits and retry."
+    if isinstance(exc, GnaniTTSRequestError):
+        return "Gnani refused speech synthesis. Check that TTS_VOICE is an enabled Timbre v3.0 voice and that the account has TTS access."
+    if status:
+        return f"Gnani rejected the TTS request (HTTP {status}). Check the voice name and Timbre v3.0 access."
+    return f"Speech playback failed ({type(exc).__name__}). Check the Gnani connection and voice configuration."
+
+
 class GnaniGateway:
     """Manages one browser WebSocket session end-to-end.
 
@@ -57,7 +89,8 @@ class GnaniGateway:
     The instance is discarded when the browser disconnects.
     """
 
-    def __init__(self):
+    def __init__(self, repo=None):
+        self._repo = repo
         self._stt: GnaniSTT | None = None
         self._tts: GnaniTTS | None = None
         self._session: dict | None = None          # brain session dict
@@ -170,30 +203,48 @@ class GnaniGateway:
         log.info("Gateway: start (lang=%s, rate=%d)", lang, sample_rate)
 
         # Create the brain session (new_session sets all required fields).
-        self._session = new_session(lang)
+        self._session = new_session(lang, repo=self._repo)
 
-        api_key = os.environ.get("GNANI_API_KEY", "").strip()
-        voice = os.environ.get("TTS_VOICE", "").strip()
+        settings = get_settings()
+        api_key = settings.GNANI_API_KEY.strip()
+        voice = settings.TTS_VOICE.strip()
 
         if not api_key:
-            await self._send_json({"type": "error", "message": "GNANI_API_KEY not configured"})
+            await self._send_json({
+                "type": "error",
+                "message": "Live voice is not configured. Add GNANI_API_KEY to backend/.env and restart the backend.",
+            })
             return
 
         if not voice:
-            # TTS_VOICE not set yet (pre-listening-test). Still start, but
-            # TTS will fail. Gateway logs warning and falls back to silence.
-            log.warning("Gateway: TTS_VOICE not set — TTS will be skipped")
+            await self._send_json({
+                "type": "error",
+                "message": "Live voice is not configured. Set TTS_VOICE in backend/.env and restart the backend.",
+            })
+            return
 
         # Initialise STT and TTS clients
         self._stt = GnaniSTT(api_key=api_key, lang=lang, sample_rate=sample_rate)
-        self._tts = GnaniTTS(api_key=api_key, voice=voice) if voice else None
+        self._tts = GnaniTTS(api_key=api_key, voice=voice)
 
         # Open STT socket (non-fatal if it fails — session continues without STT)
         try:
             await self._stt.connect()
         except Exception as exc:
-            log.error("Gateway: STT connect failed: %s", exc)
-            await self._send_json({"type": "error", "message": f"STT connection failed: {exc}"})
+            status = _http_status(exc)
+            log.warning(
+                "Gateway: STT connect failed (%s, http_status=%s)",
+                type(exc).__name__, status,
+            )
+            await self._send_json({
+                "type": "error",
+                "message": _stt_connection_message(exc),
+            })
+            await self._stt.close()
+            self._stt = None
+            if self._tts:
+                await self._tts.close()
+                self._tts = None
             return
 
         # Tell browser we're ready
@@ -268,7 +319,7 @@ class GnaniGateway:
         self._transcript_parts = []
 
         # Log transcript — redact in prod (rule: never log transcript in prod)
-        app_env = os.environ.get("APP_ENV", "dev")
+        app_env = get_settings().APP_ENV
         if app_env != "prod":
             log.info("Gateway: transcript: %r", transcript_text)
         else:
@@ -443,23 +494,34 @@ class GnaniGateway:
                 break  # barge_in arrived — stop immediately
 
             # Stream this segment chunk by chunk
-            async for pcm_chunk in self._tts.synthesize(segment, lang, speed=speed):
-                if self._barge_active.is_set():
-                    break
+            try:
+                async for pcm_chunk in self._tts.synthesize(segment, lang, speed=speed):
+                    if self._barge_active.is_set():
+                        break
 
-                # Report latency on the very first audio byte of the full response
-                if not self._first_audio_sent:
-                    self._first_audio_sent = True
-                    if self._t0 is not None:
-                        latency_ms = int((time.monotonic() - self._t0) * 1000)
-                        await self._send_json({
-                            "type": "latency",
-                            "what": "first_audio",
-                            "ms": latency_ms,
-                        })
-                        log.info("Gateway: first_audio latency %dms", latency_ms)
+                    # Report latency on the very first audio byte of the full response
+                    if not self._first_audio_sent:
+                        self._first_audio_sent = True
+                        if self._t0 is not None:
+                            latency_ms = int((time.monotonic() - self._t0) * 1000)
+                            await self._send_json({
+                                "type": "latency",
+                                "what": "first_audio",
+                                "ms": latency_ms,
+                            })
+                            log.info("Gateway: first_audio latency %dms", latency_ms)
 
-                await self._ws.send_bytes(pcm_chunk)
+                    await self._ws.send_bytes(pcm_chunk)
+            except Exception as exc:
+                log.warning(
+                    "Gateway: TTS request failed (%s, http_status=%s)",
+                    type(exc).__name__, _http_status(exc),
+                )
+                await self._send_json({
+                    "type": "error",
+                    "message": _tts_failure_message(exc),
+                })
+                return
 
         # Send tts_end after all segments (unless barge_in already sent it)
         if not self._barge_active.is_set():
@@ -479,8 +541,12 @@ class GnaniGateway:
         signs = action.get("signs", [])
         lang = self._session.get("lang", "hi-IN") if self._session else "hi-IN"
 
-        # Send danger banner to browser UI immediately
-        await self._send_json({"type": "alert", "signs": signs})
+        # Use closed-list labels so the worker sees which recorded flag needs review.
+        labeled_signs = [
+            {**sign, "label": get_danger_sign_label(sign.get("id", ""), lang)}
+            for sign in signs
+        ]
+        await self._send_json({"type": "alert", "signs": labeled_signs})
 
         if self._tts is None:
             return

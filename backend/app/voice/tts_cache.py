@@ -1,68 +1,13 @@
-# backend/app/voice/tts_cache.py
-# P10 — Pre-rendered TTS cache for Tier A locked lines.
-#
-# WHY this cache exists: Tier A lines (disclosure, cannot_advise, refer_phc,
-# not_understood, ack, goodbye) are fixed templates — same text every session.
-# Pre-rendering them means the agent plays disclosure INSTANTLY when session
-# starts, and danger alerts fire with zero TTS latency. Without this, first
-# audio takes 300–600ms just for the TTS round-trip.
-#
-# Cache location: backend/.cache/tts/<lang>/<key>.pcm
-# (This path is .gitignored — see .gitignore rule "backend/.cache/")
-#
-# Cache strategy: LAZY on first request.
-# WHY lazy (not startup): App must start even if Gnani is unreachable.
-# A background warmup attempt fires 2s after first build_cache() call.
-#
-# Usage:
-#   # At session start, gateway calls:
-#   pcm = get_cached("disclosure", "hi-IN")
-#   if pcm:
-#       await send_pcm_to_browser(pcm)
-#   else:
-#       # fall back to live TTS (get_cached already logged the warning)
-#
-#   # Build the cache once you have GNANI_API_KEY:
-#   python -m scripts.build_tts_cache
+"""Cache fixed speech lines so the first response does not wait for synthesis."""
 
-import asyncio
 import logging
 import pathlib
-import os
+
+from app.config import get_settings
 
 log = logging.getLogger(__name__)
-
-# ── Cache directory (relative to repo root) ──────────────────────────────────
-# backend/.cache/tts/<lang>/<key>.pcm
 _CACHE_DIR = pathlib.Path(__file__).resolve().parents[3] / "backend" / ".cache" / "tts"
-
-# ── Keys that are always cached (Tier A fixed lines + ack for quick response)
-# These are the TEMPLATE KEYS from templates.yaml that never change.
-# refer_phc is special: one file per danger sign ID (see build_cache).
-_STATIC_KEYS = [
-    "disclosure",
-    "cannot_advise",
-    "not_understood",
-    "ack",
-    "goodbye",
-]
-
-# ── Short ack text per language ───────────────────────────────────────────────
-# WHY hardcoded here: "ack" is not in templates.yaml (it's too short for a
-# template key). It plays immediately on commit to give instant feedback.
-# This is a Tier A line: fixed, never generated.
-_ACK_TEXT = {
-    "hi-IN": "जी...",
-    "kn-IN": "ಹೌದು...",
-    "en-IN": "Yes...",
-}
-
-# ── Goodbye text per language ─────────────────────────────────────────────────
-_GOODBYE_TEXT = {
-    "hi-IN": "धन्यवाद। विज़िट सहेजी गई। नमस्ते।",
-    "kn-IN": "ಧನ್ಯವಾದ. ಭೇಟಿ ಉಳಿಸಲಾಗಿದೆ. ನಮಸ್ಕಾರ.",
-    "en-IN": "Thank you. Visit saved. Goodbye.",
-}
+_STATIC_KEYS = ["disclosure", "cannot_advise", "not_understood", "ack", "goodbye"]
 
 
 def _pcm_path(key: str, lang: str) -> pathlib.Path:
@@ -110,10 +55,11 @@ async def build_cache(
     if langs is None:
         langs = ["hi-IN", "kn-IN", "en-IN"]
 
+    settings = get_settings()
     if api_key is None:
-        api_key = os.environ.get("GNANI_API_KEY", "").strip()
+        api_key = settings.GNANI_API_KEY.strip()
     if voice is None:
-        voice = os.environ.get("TTS_VOICE", "").strip()
+        voice = settings.TTS_VOICE.strip()
 
     if not api_key:
         log.error("TTS cache build failed: GNANI_API_KEY not set")
@@ -203,19 +149,7 @@ async def _synthesise_once(tts, text: str, lang: str) -> bytes | None:
 
 
 def _get_text_for_key(key: str, lang: str, session: dict) -> str:
-    """Get the spoken text for a static cache key.
-
-    WHY special cases for ack/goodbye: These are not in templates.yaml
-    (too short / not a template key). We define them locally here.
-    All other keys go through speak() which enforces Tier A rules.
-    """
-    if key == "ack":
-        return _ACK_TEXT.get(lang, _ACK_TEXT["en-IN"])
-
-    if key == "goodbye":
-        return _GOODBYE_TEXT.get(lang, _GOODBYE_TEXT["en-IN"])
-
-    # All other keys: use speak() — it enforces Tier A template-only rule.
+    """Get the spoken text through the session's normal template path."""
     from app.brain.speak import speak
     action = {"type": "say", "key": key, "vars": {}}
     return speak(action, session)

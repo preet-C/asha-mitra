@@ -1,141 +1,147 @@
-# backend/app/repo/memory_repo.py
-# P5 — In-memory repository (Repo interface 4.4)
-#
-# WHY this file exists: We need a working data layer for P5 that doesn't require
-# a database. It loads synthetic_beneficiaries.json into a Python dict at startup.
-# P7 replaces this with a Postgres repo (same interface — just swap the import).
-#
-# Interface (contract 4.4):
-#   get_beneficiary(id: str) → dict | None
-#   save_visit(record: dict, transcript: str) → str   (returns visit_id)
-#   followups() → list[dict]
+"""Synthetic in-memory storage used when DATABASE_URL is empty."""
 
 import json
+import logging
 import pathlib
 import uuid
-import logging
-from datetime import date, datetime
+from copy import deepcopy
+from datetime import date, timedelta
+
+from app.date_utils import today_in_india
 
 log = logging.getLogger(__name__)
-
 _DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
 
 
 def _load_beneficiaries() -> dict:
-    """Load synthetic beneficiaries from JSON into a dict keyed by ID.
-    WHY dict: O(1) lookup by ID during voice session."""
     path = _DATA_DIR / "synthetic_beneficiaries.json"
     raw = json.loads(path.read_text(encoding="utf-8"))
-    return {b["id"]: b for b in raw}
+    return {str(person["id"]): person for person in raw}
 
 
-# In-memory stores. Module-level so they persist across calls within one server run.
 _beneficiaries: dict = _load_beneficiaries()
-_visits: list[dict] = []  # saved visit records (grows over session)
+_visits: list[dict] = []
 
 
 def get_beneficiary(id: str) -> dict | None:
-    """Look up a beneficiary by their 4-digit ID string.
-
-    Returns the beneficiary dict or None if not found.
-    WHY None instead of raise: brain asks worker to re-enter ID (rule: never crash).
-    """
-    return _beneficiaries.get(str(id))
+    """Return a copy so a visit session cannot mutate the shared store."""
+    beneficiary = _beneficiaries.get(str(id))
+    return deepcopy(beneficiary) if beneficiary is not None else None
 
 
 def save_visit(record: dict, transcript: str) -> str:
-    """Save a completed visit record and return its unique visit_id.
-
-    Args:
-        record:     Final visit dict (contract 4.2). Brain builds this.
-        transcript: Raw STT text. In memory we store it as-is (synthetic only).
-                    WHY note: P7 (Postgres repo) will encrypt this with Fernet.
-                    In memory we keep it because we never store audio and synthetic
-                    data has no privacy concern.
-
-    Returns:
-        visit_id string (UUID).
-
-    Also updates the in-memory beneficiary record (last_weight_kg, vaccines_given,
-    last_flags) so followups() and future visits see the latest data.
-    WHY update: P7 does this in Postgres; we mirror that behaviour here so the
-    interface contract is identical.
-    """
+    """Save one synthetic visit and update that beneficiary atomically."""
     visit_id = str(uuid.uuid4())
+    visit_date = record.get("visit_date", today_in_india().isoformat())
+    full_visit = deepcopy({**record, "id": visit_id, "transcript": transcript})
 
-    # Store visit
-    full = {**record, "id": visit_id, "transcript": transcript}
-    _visits.append(full)
-    log.info("Saved visit %s for beneficiary %s", visit_id, record.get("beneficiary_id"))
-
-    # Update beneficiary record so future visits see current state
-    ben_id = record.get("beneficiary_id")
-    if ben_id and ben_id in _beneficiaries:
-        ben = _beneficiaries[ben_id]
-
-        # Update last weight
+    # Build the new summary before changing either in-memory collection.
+    beneficiary_id = str(record.get("beneficiary_id", ""))
+    updated_beneficiary = None
+    if beneficiary_id in _beneficiaries:
+        updated_beneficiary = deepcopy(_beneficiaries[beneficiary_id])
         if record.get("weight_kg") is not None:
-            ben["last_weight_kg"] = record["weight_kg"]
+            updated_beneficiary["last_weight_kg"] = record["weight_kg"]
 
-        # Append newly given vaccines (avoid duplicates)
-        given_today = record.get("vaccines_given_today") or []
-        visit_date_str = record.get("visit_date", date.today().isoformat())
-        existing_ids = {v["id"] for v in ben.get("vaccines_given", [])}
-        for vax_id in given_today:
-            if vax_id not in existing_ids:
-                ben.setdefault("vaccines_given", []).append({
-                    "id": vax_id,
-                    "date": visit_date_str,
-                })
+        vaccines = list(updated_beneficiary.get("vaccines_given", []))
+        known_ids = {item.get("id") for item in vaccines}
+        for vaccine_id in record.get("vaccines_given_today") or []:
+            if vaccine_id not in known_ids:
+                vaccines.append({"id": vaccine_id, "date": visit_date})
+                known_ids.add(vaccine_id)
+        updated_beneficiary["vaccines_given"] = vaccines
+        updated_beneficiary["last_flags"] = list(record.get("danger_flags") or [])
 
-        # Update last danger flags
-        ben["last_flags"] = record.get("danger_flags", [])
+    _visits.append(full_visit)
+    try:
+        if updated_beneficiary is not None:
+            _beneficiaries[beneficiary_id] = updated_beneficiary
+    except Exception:
+        # Keep the visit list and beneficiary summary in sync if the update fails.
+        _visits.pop()
+        raise
 
+    log.info("Saved visit %s for beneficiary %s", visit_id, beneficiary_id)
     return visit_id
 
 
+def list_visits(beneficiary_id: str) -> list[dict]:
+    """Return one beneficiary's visits in chronological order."""
+    visits = [
+        visit for visit in _visits
+        if str(visit.get("beneficiary_id", "")) == str(beneficiary_id)
+    ]
+    visits.sort(key=lambda visit: (visit.get("visit_date") or "", visit.get("id") or ""))
+    return deepcopy(visits)
+
+
+def rebuild_summary(beneficiary_id: str) -> dict | None:
+    """Rebuild the current weight, vaccine and danger summary from visits."""
+    beneficiary = _beneficiaries.get(str(beneficiary_id))
+    if beneficiary is None:
+        return None
+
+    visits = list_visits(beneficiary_id)
+    summary = deepcopy(beneficiary)
+    summary["last_weight_kg"] = next(
+        (visit.get("weight_kg") for visit in reversed(visits)
+         if visit.get("weight_kg") is not None),
+        None,
+    )
+
+    vaccines_by_id = {}
+    for visit in visits:
+        for vaccine_id in visit.get("vaccines_given_today") or []:
+            vaccines_by_id.setdefault(vaccine_id, {
+                "id": vaccine_id,
+                "date": visit.get("visit_date"),
+            })
+    summary["vaccines_given"] = list(vaccines_by_id.values())
+    summary["last_flags"] = list(visits[-1].get("danger_flags") or []) if visits else []
+    return summary
+
+
 def followups() -> list[dict]:
-    """Return upcoming visits and flagged records for the follow-up list.
+    """Return upcoming visits in the default seven-day window."""
+    return get_followups(today=today_in_india().isoformat(), days_ahead=7)
 
-    Returns list of dicts with keys: id, name, village, next_visit_date, flagged.
-    Sorted: flagged visits first, then by soonest next_visit_date.
 
-    WHY this shape: matches the UI contract (P8) and P7 Postgres repo.
-    """
-    today_str = date.today().isoformat()
+def get_followups(today: str, days_ahead: int = 7) -> list[dict]:
+    """Return upcoming or flagged visits with the same shape as PostgreSQL."""
+    start = date.fromisoformat(today)
+    cutoff = (start + timedelta(days=max(0, days_ahead))).isoformat()
     result = []
 
-    # Collect all visits that have a next_visit_date in the future
     for visit in _visits:
-        ben_id = visit.get("beneficiary_id")
-        ben = _beneficiaries.get(ben_id, {})
+        beneficiary_id = str(visit.get("beneficiary_id", ""))
+        beneficiary = _beneficiaries.get(beneficiary_id, {})
         next_date = visit.get("next_visit_date")
-        flagged = visit.get("flagged", False)
+        danger_flags = list(visit.get("danger_flags") or [])
+        flagged = bool(visit.get("flagged") or danger_flags)
+        upcoming = next_date is not None and today <= next_date <= cutoff
+        if not upcoming and not flagged:
+            continue
 
-        # Include if upcoming or flagged
-        if (next_date and next_date >= today_str) or flagged:
-            result.append({
-                "visit_id": visit.get("id"),
-                "beneficiary_id": ben_id,
-                "name": ben.get("name", ""),
-                "village": ben.get("village", ""),
-                "next_visit_date": next_date,
-                "flagged": flagged,
-                "danger_flags": visit.get("danger_flags", []),
-            })
+        result.append({
+            "visit_id": visit.get("id"),
+            "beneficiary_id": beneficiary_id,
+            "name": beneficiary.get("name", ""),
+            "village": beneficiary.get("village", ""),
+            "kind": beneficiary.get("kind", ""),
+            "next_visit_date": next_date,
+            "flagged": flagged,
+            "danger_flags": danger_flags,
+        })
 
-    # Sort: flagged first, then by next_visit_date ascending
-    result.sort(key=lambda r: (
-        0 if r["flagged"] else 1,
-        r["next_visit_date"] or "9999-12-31",
+    result.sort(key=lambda item: (
+        0 if item["flagged"] else 1,
+        item["next_visit_date"] or "9999-12-31",
     ))
-
     return result
 
 
 def reset_for_testing() -> None:
-    """Clear visits and reload beneficiaries from file. Used in tests only.
-    WHY: Tests must start from a clean state so they don't interfere with each other."""
+    """Reset the synthetic store so tests cannot affect each other."""
     global _beneficiaries, _visits
     _beneficiaries = _load_beneficiaries()
     _visits = []

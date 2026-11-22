@@ -24,6 +24,7 @@ import sqlalchemy as sa
 
 from app.db import get_session
 from app.models import Beneficiary, Visit
+from app.date_utils import today_in_india
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def save_visit(record: dict, transcript: str) -> str:
         visit_id string (UUID).
     """
     visit_id = str(uuid.uuid4())
-    today = date.today().isoformat()
+    today = today_in_india().isoformat()
     visit_date = record.get("visit_date", today)
 
     # Encrypt transcript — never store raw speech text (rule 7, D12)
@@ -132,7 +133,7 @@ def followups() -> list[dict]:
     WHY alias: dialogue.py and memory_repo both call followups() with no args.
     Keeping this name means dialogue.py needs zero changes.
     """
-    return get_followups(today=date.today().isoformat(), days_ahead=7)
+    return get_followups(today=today_in_india().isoformat(), days_ahead=7)
 
 
 def get_followups(today: str, days_ahead: int = 7) -> list[dict]:

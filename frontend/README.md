@@ -1,16 +1,26 @@
-# React + Vite
+# ASHA Mitra frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This React + Vite client talks to the FastAPI backend through the Vite `/api`
+and `/ws` proxies. It never contains speech-provider credentials.
 
-Currently, two official plugins are available:
+From this directory, install dependencies and start the dev server:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```powershell
+npm install
+npm run dev
+```
 
-## React Compiler
+The backend defaults to `http://127.0.0.1:8000`. To use another backend,
+set `ASHA_BACKEND_URL` before starting Vite, for example:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```powershell
+$env:ASHA_BACKEND_URL = "http://127.0.0.1:8001"
+npm run dev -- --port 5174
+```
 
-## Expanding the ESLint configuration
+Use **Demo preview** to explore the scripted flow. It uses synthetic records
+and does not request microphone access or call the speech provider. **Live
+voice** requires the backend to be running and configured with `GNANI_API_KEY`
+and `TTS_VOICE` in `backend/.env`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Run the frontend checks with `npm run lint` and `npm run build`.

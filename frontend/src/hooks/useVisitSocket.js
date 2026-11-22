@@ -1,225 +1,291 @@
-// frontend/src/hooks/useVisitSocket.js
-// WHY this file: single place that owns the WebSocket connection for one visit session.
-// Returns reactive state (transcript, card draft, alerts, etc.) and action functions
-// (sendAudio, sendCommit, sendBargeIn) so components stay simple and dumb.
-//
-// When mock=true (URL has ?mock=1) it plugs in mockSocket instead of a real WebSocket.
-// The rest of the app cannot tell the difference — same interface, same message shapes.
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createMockSocket } from "../mock/mockSocket";
 
-// ── reconnect settings ─────────────────────────────────────────────────────────
-const MAX_RETRIES = 3;        // give up after this many failed reconnects
-const BACKOFF_BASE_MS = 1000; // first retry after 1 s, then 2 s, then 4 s
+const MAX_RETRIES = 3;
+const MAX_QUEUED_AUDIO_BYTES = 512 * 1024;
 
-// ── WebSocket URL helper ───────────────────────────────────────────────────────
 function wsUrl(path) {
-  // WHY: cloudflared tunnel uses HTTPS → wss; local dev uses HTTP → ws.
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${window.location.host}${path}`;
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${window.location.host}${path}`;
 }
 
-/**
- * useVisitSocket — React hook for the visit session WebSocket.
- *
- * @param {string}   lang     - Selected language code, e.g. "hi-IN".
- * @param {boolean}  mock     - If true, use mockSocket instead of a real server.
- * @param {function} onTtsStart  - Called with { sampleRate } when TTS stream begins.
- * @param {function} onTtsChunk  - Called with ArrayBuffer for each binary audio chunk.
- * @param {function} onTtsEnd    - Called when TTS stream finishes.
- *
- * @returns {object} Reactive state + action functions (see return statement).
- */
-export function useVisitSocket({ lang, mock, enabled = true, onTtsStart, onTtsChunk, onTtsEnd }) {
-  // ── reactive state ───────────────────────────────────────────────────────────
-  const [status, setStatus] = useState("connecting"); // connecting | ready | error | closed
+export function useVisitSocket({
+  lang,
+  mock,
+  enabled = true,
+  onTtsStart,
+  onTtsChunk,
+  onTtsEnd,
+}) {
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState("");
   const [transcript, setTranscript] = useState("");
-  const [draft, setDraft] = useState({});        // VisitDraft shape (contract 4.1)
-  const [uncertain, setUncertain] = useState([]); // list of uncertain field names
-  const [alerts, setAlerts] = useState([]);       // accumulated danger sign objects
+  const [agentText, setAgentText] = useState("");
+  const [draft, setDraft] = useState({});
+  const [uncertain, setUncertain] = useState([]);
+  const [alerts, setAlerts] = useState([]);
   const [latencyMs, setLatencyMs] = useState(null);
   const [savedId, setSavedId] = useState(null);
   const [currentLang, setCurrentLang] = useState(lang);
-  const [speed, setSpeed] = useState(1.0);
+  const [speed, setSpeed] = useState(1);
 
-  // ── internal refs ────────────────────────────────────────────────────────────
   const wsRef = useRef(null);
+  const connectRef = useRef(null);
+  const retryTimerRef = useRef(null);
   const retriesRef = useRef(0);
-  const ttsActiveRef = useRef(false); // true while receiving TTS binary frames
+  const startRateRef = useRef(null);
+  const sessionReadyRef = useRef(false);
+  const serverErrorRef = useRef(false);
+  const queuedAudioRef = useRef([]);
+  const queuedAudioBytesRef = useRef(0);
+  const queuedCommitRef = useRef(false);
+  const ttsActiveRef = useRef(false);
 
-  // ── open (or re-open) the WebSocket ──────────────────────────────────────────
+  const clearSession = useCallback(() => {
+    setError("");
+    setTranscript("");
+    setAgentText("");
+    setDraft({});
+    setUncertain([]);
+    setAlerts([]);
+    setLatencyMs(null);
+    setSavedId(null);
+    retriesRef.current = 0;
+    startRateRef.current = null;
+    sessionReadyRef.current = false;
+    serverErrorRef.current = false;
+    queuedAudioRef.current = [];
+    queuedAudioBytesRef.current = 0;
+    queuedCommitRef.current = false;
+    ttsActiveRef.current = false;
+  }, []);
+
+  const sendStartFrame = useCallback((ws) => {
+    if (ws?.readyState !== WebSocket.OPEN || startRateRef.current == null) return;
+    sessionReadyRef.current = false;
+    serverErrorRef.current = false;
+    setError("");
+    setStatus("starting");
+    ws.send(JSON.stringify({
+      type: "start",
+      lang,
+      sample_rate: startRateRef.current,
+    }));
+  }, [lang]);
+
   const connect = useCallback(() => {
-    // Clean up any existing socket before making a new one.
-    if (wsRef.current) {
-      wsRef.current.onopen = null;
-      wsRef.current.onmessage = null;
-      wsRef.current.onerror = null;
-      wsRef.current.onclose = null;
-      try { wsRef.current.close(); } catch (_) {}
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
     }
 
+    const oldSocket = wsRef.current;
+    if (oldSocket) {
+      oldSocket.onopen = null;
+      oldSocket.onmessage = null;
+      oldSocket.onerror = null;
+      oldSocket.onclose = null;
+      try {
+        oldSocket.close(1000);
+      } catch {
+        // The previous socket may already be closed.
+      }
+    }
+
+    setStatus("connecting");
     const ws = mock ? createMockSocket() : new WebSocket(wsUrl("/ws/session"));
     wsRef.current = ws;
-    ws.binaryType = "arraybuffer"; // WHY: binary audio comes as ArrayBuffer
+    ws.binaryType = "arraybuffer";
 
     ws.onopen = () => {
-      retriesRef.current = 0; // reset retry count on successful connect
-      setStatus("connecting"); // still connecting until "ready" message
-      // Send the "start" frame immediately so the backend knows the language.
-      ws.send(JSON.stringify({ type: "start", lang, sample_rate: 16000 }));
+      if (mock) {
+        startRateRef.current = 16000;
+        sendStartFrame(ws);
+      } else if (startRateRef.current != null) {
+        sendStartFrame(ws);
+      } else {
+        setStatus("connected");
+      }
     };
 
-    ws.onmessage = (evt) => {
-      // Binary frame = PCM16 audio chunk (TTS stream)
-      if (evt.data instanceof ArrayBuffer) {
-        if (ttsActiveRef.current && onTtsChunk) {
-          onTtsChunk(evt.data);
-        }
+    ws.onmessage = (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        if (ttsActiveRef.current && onTtsChunk) onTtsChunk(event.data);
         return;
       }
 
-      // Text frame = JSON control message
-      let msg;
-      try { msg = JSON.parse(evt.data); } catch { return; }
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
 
-      switch (msg.type) {
-        case "ready":
+      switch (message.type) {
+        case "ready": {
+          sessionReadyRef.current = true;
+          serverErrorRef.current = false;
+          retriesRef.current = 0;
+          setError("");
           setStatus("ready");
+          for (const chunk of queuedAudioRef.current) ws.send(chunk);
+          queuedAudioRef.current = [];
+          queuedAudioBytesRef.current = 0;
+          if (queuedCommitRef.current) {
+            ws.send(JSON.stringify({ type: "commit" }));
+            queuedCommitRef.current = false;
+          }
           break;
-
+        }
         case "transcript":
-          setTranscript(msg.text || "");
+          setTranscript(message.text || "");
           break;
-
         case "card":
-          // Replace draft and uncertain list entirely (server sends full state).
-          setDraft(msg.draft || {});
-          setUncertain(msg.uncertain || []);
+          setDraft(message.draft || {});
+          setUncertain(message.uncertain || []);
           break;
-
         case "alert":
-          // Append new signs; never clear — banner stays for whole session.
-          setAlerts((prev) => {
-            const existingIds = new Set(prev.map((s) => s.id));
-            const newSigns = (msg.signs || []).filter((s) => !existingIds.has(s.id));
-            return [...prev, ...newSigns];
+          setAlerts((current) => {
+            const known = new Set(current.map((item) => item.id));
+            return [...current, ...(message.signs || []).filter((item) => !known.has(item.id))];
           });
           break;
-
         case "tts_start":
           ttsActiveRef.current = true;
-          if (onTtsStart) onTtsStart({ sampleRate: msg.sample_rate });
+          setAgentText(message.text || "");
+          onTtsStart?.({ sampleRate: message.sample_rate, text: message.text || "" });
           break;
-
         case "tts_end":
           ttsActiveRef.current = false;
-          if (onTtsEnd) onTtsEnd();
+          onTtsEnd?.();
           break;
-
         case "latency":
-          if (msg.what === "first_audio") setLatencyMs(msg.ms);
+          if (message.what === "first_audio") setLatencyMs(message.ms);
           break;
-
         case "saved":
-          setSavedId(msg.visit_id || "saved");
+          setSavedId(message.visit_id || "saved");
           break;
-
         case "setting":
-          // Voice command changed language or speed.
-          if (msg.lang) setCurrentLang(msg.lang);
-          if (msg.speed != null) setSpeed(msg.speed);
+          if (message.lang) setCurrentLang(message.lang);
+          if (message.speed != null) setSpeed(message.speed);
           break;
-
         case "error":
-          console.error("[socket] server error:", msg.message);
+          serverErrorRef.current = true;
+          sessionReadyRef.current = false;
+          queuedAudioRef.current = [];
+          queuedAudioBytesRef.current = 0;
+          setError(message.message || "The voice session could not start.");
           setStatus("error");
           break;
-
         default:
-          // Unknown message types are silently ignored (forward compatibility).
           break;
       }
     };
 
     ws.onerror = () => {
-      // onerror always fires before onclose on connection failure.
-      // We handle retry in onclose to avoid double-triggering.
-      console.warn("[socket] WebSocket error");
+      setError("The connection was interrupted. Check that both servers are running.");
     };
 
-    ws.onclose = (evt) => {
+    ws.onclose = (event) => {
+      if (wsRef.current !== ws) return;
+      sessionReadyRef.current = false;
       ttsActiveRef.current = false;
-      const isNormalClose = evt.code === 1000 || evt.code === 1001;
-
-      if (isNormalClose) {
+      if (event.code === 1000 || event.code === 1001) {
         setStatus("closed");
         return;
       }
+      if (serverErrorRef.current) return;
 
-      // Abnormal close — try to reconnect with exponential backoff.
       if (retriesRef.current < MAX_RETRIES) {
-        const delay = BACKOFF_BASE_MS * Math.pow(2, retriesRef.current);
-        retriesRef.current++;
-        console.warn(`[socket] closed (code ${evt.code}), retrying in ${delay} ms (attempt ${retriesRef.current})`);
+        const delay = 750 * (2 ** retriesRef.current);
+        retriesRef.current += 1;
+        setError("The connection dropped. Trying to reconnect…");
         setStatus("connecting");
-        setTimeout(connect, delay);
+        retryTimerRef.current = setTimeout(() => connectRef.current?.(), delay);
       } else {
-        console.error("[socket] max retries reached — giving up");
+        setError("Could not reconnect. Check the backend and try again.");
         setStatus("error");
       }
     };
-  }, [lang, mock, onTtsStart, onTtsChunk, onTtsEnd]);
+  }, [mock, onTtsChunk, onTtsEnd, onTtsStart, sendStartFrame]);
 
-  // Open socket only when enabled (i.e. after language is picked).
-  // WHY: if we connect at mount, the mock session fires during the language
-  // picker screen and is already finished by the time the user reaches the
-  // session screen — they'd see empty state. enabled=false = no socket at all.
   useEffect(() => {
-    if (!enabled) return; // wait until language is chosen
-    connect();
+    connectRef.current = connect;
+  }, [connect]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+    // Start the socket after React finishes this effect's synchronous pass.
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) connectRef.current?.();
+    });
     return () => {
-      if (wsRef.current) {
-        wsRef.current.onopen = null;
-        wsRef.current.onmessage = null;
-        wsRef.current.onerror = null;
-        wsRef.current.onclose = null;
-        try { wsRef.current.close(1000); } catch (_) {}
+      active = false;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (ws) {
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        try {
+          ws.close(1000);
+        } catch {
+          // The socket is already closed.
+        }
       }
     };
   }, [connect, enabled]);
 
-  // ── action functions ───────────────────────────────────────────────────────
-  // These are stable references (no deps that change) so components can use
-  // them in event handlers without re-subscribing.
+  const sendStart = useCallback((sampleRate) => {
+    startRateRef.current = sampleRate;
+    if (wsRef.current?.readyState === WebSocket.OPEN) sendStartFrame(wsRef.current);
+  }, [sendStartFrame]);
 
-  const sendAudio = useCallback((arrayBuffer) => {
-    if (wsRef.current?.readyState === 1 /* OPEN */) {
-      wsRef.current.send(arrayBuffer);
+  const sendAudio = useCallback((chunk) => {
+    const ws = wsRef.current;
+    if (ws?.readyState !== WebSocket.OPEN || !startRateRef.current) return;
+    if (sessionReadyRef.current) {
+      ws.send(chunk);
+      return;
+    }
+    if (queuedAudioBytesRef.current + chunk.byteLength <= MAX_QUEUED_AUDIO_BYTES) {
+      queuedAudioRef.current.push(chunk);
+      queuedAudioBytesRef.current += chunk.byteLength;
     }
   }, []);
 
   const sendCommit = useCallback(() => {
-    if (wsRef.current?.readyState === 1) {
-      wsRef.current.send(JSON.stringify({ type: "commit" }));
+    const ws = wsRef.current;
+    if (ws?.readyState !== WebSocket.OPEN || !startRateRef.current) return;
+    if (sessionReadyRef.current) {
+      ws.send(JSON.stringify({ type: "commit" }));
+    } else {
+      queuedCommitRef.current = true;
     }
   }, []);
 
   const sendBargeIn = useCallback(() => {
-    if (wsRef.current?.readyState === 1) {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: "barge_in" }));
     }
   }, []);
 
-  const sendEnd = useCallback(() => {
-    if (wsRef.current?.readyState === 1) {
-      wsRef.current.send(JSON.stringify({ type: "end" }));
-    }
-  }, []);
+  const reconnect = useCallback(() => {
+    clearSession();
+    connect();
+  }, [clearSession, connect]);
 
   return {
-    status,
+    status: enabled ? status : "idle",
+    error,
     transcript,
+    agentText,
     draft,
     uncertain,
     alerts,
@@ -228,8 +294,9 @@ export function useVisitSocket({ lang, mock, enabled = true, onTtsStart, onTtsCh
     currentLang,
     speed,
     sendAudio,
+    sendStart,
     sendCommit,
     sendBargeIn,
-    sendEnd,
+    reconnect,
   };
 }

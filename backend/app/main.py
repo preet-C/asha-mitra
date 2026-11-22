@@ -1,33 +1,30 @@
 # backend/app/main.py
 # FastAPI application — routes and startup.
 #
-# P7 adds:
-#   - lifespan: creates DB tables at startup
-#   - GET /api/beneficiaries/{id}  → pg_repo.get_beneficiary
-#   - GET /api/followups           → pg_repo.get_followups(today, days_ahead=7)
-#
-# Repo switcher: DATABASE_URL set → pg_repo. Empty → memory_repo (P5a fallback).
-# dialogue.py uses session["repo"] injected by the WebSocket gateway (P10).
-# These two REST routes use pg_repo directly because they are always DB-backed.
+# Repo switcher: DATABASE_URL set → PostgreSQL. Empty → synthetic in-memory store.
 #
 # RULE: WebSocket routes go ABOVE the marked comment line (P9, P10).
 # RULE: Static frontend mount goes at the very END (P11).
 
 from contextlib import asynccontextmanager
-from datetime import date
-
 from fastapi import FastAPI, HTTPException
 
 from app.config import get_settings
+from app.date_utils import today_in_india
 
 
 # ── repo switcher ─────────────────────────────────────────────────────────────
-# dialogue.py and brain code use this via the session object (injected in P10).
-# Simple rule: DATABASE_URL set → Postgres repo; empty → in-memory repo.
+# Voice sessions and REST routes use the same repository.
+
+def _database_enabled() -> bool:
+    """A non-empty DATABASE_URL selects PostgreSQL; memory is a safe dev sentinel."""
+    value = get_settings().DATABASE_URL.strip()
+    return bool(value) and value.lower() != "memory"
+
 
 def _get_repo():
-    """Return the correct repo module based on DATABASE_URL env var."""
-    if get_settings().DATABASE_URL:
+    """Return PostgreSQL or the synthetic in-memory repository."""
+    if _database_enabled():
         import app.repo.pg_repo as _repo
     else:
         import app.repo.memory_repo as _repo  # type: ignore[no-redef]
@@ -45,7 +42,7 @@ async def lifespan(app: FastAPI):
 
     WHY lifespan: FastAPI recommends this over @app.on_event (deprecated v0.93+).
     """
-    if get_settings().DATABASE_URL:
+    if _database_enabled():
         from app.db import create_tables
         create_tables()
         print("DB tables ready.")
@@ -72,11 +69,9 @@ def get_beneficiary(id: str):
     Used by the UI handshake (session start) to pre-fill the card header
     with name, village, kind before the worker speaks their first note.
 
-    Returns 404 if the ID is not in the database — brain asks worker to retry.
-    Uses pg_repo directly (not memory_repo) — always needs a live DB.
+    Returns 404 if the ID is not in the active synthetic data store.
     """
-    import app.repo.pg_repo as pg_repo
-    ben = pg_repo.get_beneficiary(id)
+    ben = repo.get_beneficiary(id)
     if ben is None:
         raise HTTPException(status_code=404, detail=f"Beneficiary {id!r} not found.")
     return ben
@@ -90,11 +85,11 @@ def get_followups(days_ahead: int = 7):
     Default days_ahead=7 gives one week ahead — covers a typical demo window.
     Pass ?days_ahead=30 to show a wider range.
 
-    Uses pg_repo directly (not memory_repo) — always needs a live DB.
     """
-    import app.repo.pg_repo as pg_repo
-    today = date.today().isoformat()
-    return pg_repo.get_followups(today=today, days_ahead=days_ahead)
+    today = today_in_india().isoformat()
+    if hasattr(repo, "get_followups"):
+        return repo.get_followups(today=today, days_ahead=days_ahead)
+    return repo.followups(today=today, days_ahead=days_ahead)
 
 
 # ── P9 route — /ws/loopback (audio spike, no Gnani) ─────────────────────────
@@ -134,7 +129,7 @@ async def ws_session(websocket):
                    tts_end, latency, saved, setting, error.
     """
     from app.voice.gateway import GnaniGateway
-    gateway = GnaniGateway()
+    gateway = GnaniGateway(repo=repo)
     try:
         await gateway.run(websocket)
     except Exception as exc:

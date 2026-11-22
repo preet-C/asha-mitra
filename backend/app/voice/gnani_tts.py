@@ -41,6 +41,10 @@ _ALLOWED_SPEEDS = {0.8, 1.0, 1.2}
 _DEFAULT_SPEED = 1.0
 
 
+class GnaniTTSRequestError(RuntimeError):
+    """A safe, non-secret description of a failed TTS request."""
+
+
 def _clamp_speed(speed: float) -> float:
     """Return the nearest allowed speed value.
 
@@ -155,11 +159,13 @@ class GnaniTTS:
         try:
             await self._ws.send(json.dumps(request))
         except Exception as exc:
-            log.warning("GnaniTTS: send error: %s", exc)
+            log.warning("GnaniTTS: send failed (%s)", type(exc).__name__)
             await self._close_socket()
-            return
+            raise GnaniTTSRequestError("TTS request could not be sent.") from exc
 
         # Receive audio chunks until "complete" or cancellation
+        completed = False
+        received_audio = False
         try:
             async for raw in self._ws:
                 # Check barge_in cancellation before each chunk
@@ -188,23 +194,39 @@ class GnaniTTS:
                     b64 = msg.get("data", {}).get("audio", "")
                     if b64:
                         try:
-                            pcm_bytes = base64.b64decode(b64)
+                            pcm_bytes = base64.b64decode(b64, validate=True)
+                            received_audio = True
                             yield pcm_bytes
                         except Exception as exc:
-                            log.warning("GnaniTTS: base64 decode error: %s", exc)
+                            log.warning("GnaniTTS: invalid audio chunk (%s)", type(exc).__name__)
+                            raise GnaniTTSRequestError("TTS returned invalid audio data.") from exc
 
                 elif event_type == "complete" or msg.get("is_final"):
                     log.debug("GnaniTTS: synthesis complete")
+                    completed = True
                     break  # done — keep socket open for next request
 
                 elif event_type == "error":
-                    log.error("GnaniTTS: server error: %s", msg)
+                    error_code = str(msg.get("code") or msg.get("error_code") or "provider_error")[:60]
+                    log.error("GnaniTTS: provider rejected synthesis (code=%s)", error_code)
                     await self._close_socket()
-                    break
+                    raise GnaniTTSRequestError("Gnani rejected the speech request.")
 
         except Exception as exc:
-            log.warning("GnaniTTS: receive error: %s", exc)
+            if self._cancelled:
+                return
+            if isinstance(exc, GnaniTTSRequestError):
+                raise
+            log.warning("GnaniTTS: receive failed (%s)", type(exc).__name__)
             await self._close_socket()
+            raise GnaniTTSRequestError("TTS connection ended unexpectedly.") from exc
+
+        if self._cancelled:
+            return
+        if not completed:
+            raise GnaniTTSRequestError("TTS did not complete the speech request.")
+        if not received_audio:
+            raise GnaniTTSRequestError("TTS completed without returning audio.")
 
     # ── Barge-in cancel ────────────────────────────────────────────────────────
 

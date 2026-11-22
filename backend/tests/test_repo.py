@@ -18,8 +18,10 @@ import pytest
 
 # A valid Fernet key for tests only — never used in production.
 _TEST_KEY = "7xDkNn1GWg5V-Mg4at2tf6iMj5WgERPy9ueXRBlGyKQ="
-os.environ.setdefault("TRANSCRIPT_KEY", _TEST_KEY)
+os.environ["TRANSCRIPT_KEY"] = _TEST_KEY
 os.environ["DATABASE_URL"] = "sqlite://"  # always override to in-memory SQLite
+from app.config import get_settings  # noqa: E402
+get_settings.cache_clear()  # prevent cached .env settings from reaching a real database
 
 # ── app imports ───────────────────────────────────────────────────────────────
 import app.db as db_module               # noqa: E402

@@ -12,16 +12,10 @@
 
 import json
 import logging
-import os
 
 import httpx
 
 log = logging.getLogger(__name__)
-
-# In dev mode, log a snippet of prompts to help with debugging.
-# In prod, never log — transcripts may contain patient data.
-_IS_DEV = os.getenv("APP_ENV", "dev") == "dev"
-
 
 def llm_json(system: str, user: str) -> dict:
     """
@@ -39,9 +33,8 @@ def llm_json(system: str, user: str) -> dict:
 
     provider = (s.LLM_PROVIDER or "gemini").lower().strip()
 
-    if _IS_DEV:
-        log.debug("llm_json provider=%s model=%s user_snippet=%.80r",
-                  provider, s.LLM_MODEL, user)
+    # Never log transcript text; even synthetic demos can contain sensitive notes.
+    log.debug("llm_json provider=%s model=%s", provider, s.LLM_MODEL)
 
     if provider == "gemini":
         return _call_gemini(system, user, s)
@@ -251,7 +244,7 @@ def _post_with_retry(
                 last_error = e
                 continue
             raise ValueError(
-                f"LLM HTTP {status}: {e.response.text[:300]}"
+                f"LLM provider returned HTTP {status}. Check provider, model, and API-key access."
             ) from e
 
         except httpx.TimeoutException as e:
@@ -260,6 +253,15 @@ def _post_with_retry(
                 log.warning("LLM attempt 1 timed out (8s), retrying")
             else:
                 raise ValueError("LLM timed out after 2 attempts (8s each)") from e
+
+        except httpx.RequestError as e:
+            last_error = e
+            if attempt == 0:
+                log.warning("LLM attempt 1 request failed (%s), retrying", type(e).__name__)
+            else:
+                raise ValueError(
+                    f"LLM request failed after 2 attempts ({type(e).__name__})."
+                ) from e
 
     # Should not reach here, but just in case
     raise ValueError(f"LLM failed after 2 attempts: {last_error}")

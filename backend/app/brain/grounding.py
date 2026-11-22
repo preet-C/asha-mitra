@@ -37,6 +37,7 @@ from app.brain.normalize import (
     parse_spoken_number,
 )
 from app.brain.checks import check_visit_type
+from app.date_utils import today_in_india
 
 _DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
 
@@ -238,7 +239,7 @@ def field_status(
     """
     result = {}
     transcript_norm = _normalize_transcript(transcript)
-    today = date.today()
+    today = today_in_india()
 
     # ── beneficiary_id ────────────────────────────────────────────────────────
     bid = draft.get("beneficiary_id")

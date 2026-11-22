@@ -1,4 +1,6 @@
 // frontend/public/recorder-worklet.js
+/* global AudioWorkletProcessor, registerProcessor */
+
 // WHY this file: AudioWorklet runs in the real-time audio thread (separate from
 // the main JS thread), so it can collect mic samples without dropping them.
 // It converts Float32 → Int16 PCM and posts 512-sample chunks to the main thread.

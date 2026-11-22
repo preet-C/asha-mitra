@@ -13,7 +13,6 @@
 #   - generate_key() is a helper for setup docs only — never called by the app.
 
 import logging
-import os
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -30,7 +29,8 @@ def fernet_key() -> bytes:
     Raises:
         RuntimeError — if the env var is missing, empty, or not valid base64.
     """
-    raw = os.environ.get("TRANSCRIPT_KEY", "").strip()
+    from app.config import get_settings
+    raw = get_settings().TRANSCRIPT_KEY.strip()
     if not raw:
         raise RuntimeError(
             "TRANSCRIPT_KEY is not set in backend/.env.\n"

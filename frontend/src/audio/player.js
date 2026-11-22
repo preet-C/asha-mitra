@@ -93,7 +93,7 @@ export class AudioPlayer {
     for (const source of this._sources) {
       try {
         source.stop();
-      } catch (_) {
+      } catch {
         // source.stop() throws if the source has already finished — ignore.
       }
     }
