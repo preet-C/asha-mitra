@@ -2,8 +2,9 @@
 # P10 — Gnani Timbre v3.0 TTS WebSocket client.
 #
 # WHY this file exists: TTS must be called from the backend only (key stays
-# server-side). We keep one WebSocket open between requests to avoid
-# reconnect overhead (~50-200ms) on each utterance. Source: PLAN.md P10.
+# server-side). Each synthesis request gets a fresh WebSocket because the
+# live Timbre endpoint may acknowledge a later request with an empty complete
+# event on a reused socket. This avoids silently cutting off the next prompt.
 #
 # Docs read:
 #   https://docs.gnani.ai/api/TTS/tts-websocket.md
@@ -44,6 +45,11 @@ _DEFAULT_SPEED = 1.0
 class GnaniTTSRequestError(RuntimeError):
     """A safe, non-secret description of a failed TTS request."""
 
+    def __init__(self, message: str, *, kind: str = "stream"):
+        super().__init__(message)
+        # Only provider error events should suggest checking voice/account access.
+        self.kind = kind
+
 
 def _clamp_speed(speed: float) -> float:
     """Return the nearest allowed speed value.
@@ -55,11 +61,11 @@ def _clamp_speed(speed: float) -> float:
 
 
 class GnaniTTS:
-    """Manages a persistent Gnani Timbre v3.0 TTS WebSocket.
+    """Manages Timbre v3.0 synthesis for one browser WebSocket session.
 
-    One instance per browser WebSocket session. The socket is opened lazily
-    on the first synthesize() call and kept open between utterances.
-    On cancel() (barge_in) or error, the socket is closed and reopens next call.
+    The provider socket opens lazily and closes after each synthesis request.
+    On the next request it opens a fresh socket. cancel() also closes the
+    current socket immediately when the worker interrupts speech.
     """
 
     def __init__(self, api_key: str, voice: str):
@@ -114,7 +120,7 @@ class GnaniTTS:
     async def synthesize(self, text: str, lang: str, speed: float = 1.0):
         """Async generator: synthesise text and yield raw PCM16 byte chunks.
 
-        One TTS request per call. The WebSocket stays open between calls.
+        One TTS request per call. The WebSocket closes when this request ends.
         Gnani response flow per docs:
           server → {"event": "start"}           (synthesis started)
           server → {"event": "audio", "data": {"audio": "<base64>"}}  (chunk)
@@ -184,14 +190,25 @@ class GnaniTTS:
                     continue
 
                 event_type = msg.get("event") or msg.get("type", "")
+                data = msg.get("data")
+                if not isinstance(data, dict):
+                    data = {}
 
-                if event_type == "start":
+                if event_type == "error":
+                    error_code = str(msg.get("code") or msg.get("error_code") or "provider_error")[:60]
+                    log.error("GnaniTTS: provider rejected synthesis (code=%s)", error_code)
+                    await self._close_socket()
+                    raise GnaniTTSRequestError(
+                        "Gnani rejected the speech request.", kind="rejected"
+                    )
+
+                elif event_type == "start":
                     log.debug("GnaniTTS: synthesis started")
                     # Nothing to yield yet — just an ack from server
 
                 elif event_type == "audio":
                     # Decode base64 → raw PCM16 bytes and yield to caller
-                    b64 = msg.get("data", {}).get("audio", "")
+                    b64 = data.get("audio", "")
                     if b64:
                         try:
                             pcm_bytes = base64.b64decode(b64, validate=True)
@@ -201,21 +218,23 @@ class GnaniTTS:
                             log.warning("GnaniTTS: invalid audio chunk (%s)", type(exc).__name__)
                             raise GnaniTTSRequestError("TTS returned invalid audio data.") from exc
 
-                elif event_type == "complete" or msg.get("is_final"):
+                    # Some deployments mark the final audio frame itself as
+                    # final instead of sending a separate complete event.
+                    if msg.get("is_final") or data.get("is_final"):
+                        log.debug("GnaniTTS: final audio chunk received")
+                        completed = True
+                        break
+
+                elif event_type == "complete" or msg.get("is_final") or data.get("is_final"):
                     log.debug("GnaniTTS: synthesis complete")
                     completed = True
-                    break  # done — keep socket open for next request
-
-                elif event_type == "error":
-                    error_code = str(msg.get("code") or msg.get("error_code") or "provider_error")[:60]
-                    log.error("GnaniTTS: provider rejected synthesis (code=%s)", error_code)
-                    await self._close_socket()
-                    raise GnaniTTSRequestError("Gnani rejected the speech request.")
+                    break
 
         except Exception as exc:
             if self._cancelled:
                 return
             if isinstance(exc, GnaniTTSRequestError):
+                await self._close_socket()
                 raise
             log.warning("GnaniTTS: receive failed (%s)", type(exc).__name__)
             await self._close_socket()
@@ -223,6 +242,9 @@ class GnaniTTS:
 
         if self._cancelled:
             return
+        # Reusing the provider socket caused empty completion events for the
+        # next prompt, so always start the next synthesis on a clean socket.
+        await self._close_socket()
         if not completed:
             raise GnaniTTSRequestError("TTS did not complete the speech request.")
         if not received_audio:

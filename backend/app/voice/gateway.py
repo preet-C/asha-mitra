@@ -19,7 +19,7 @@
 #   1. Instant ack (cached "ji...") plays on commit before transcript arrives.
 #   2. TTS cache for Tier A lines (disclosure, refer_phc, etc.) = 0 TTS latency.
 #   3. Read-back split at ". " so first sentence plays before rest is synthesised.
-#   4. Persistent TTS socket (stays open between utterances).
+#   4. Fresh TTS socket per request so each prompt starts with a clean stream.
 
 import asyncio
 import json
@@ -76,7 +76,9 @@ def _tts_failure_message(exc: Exception) -> str:
     if status == 429:
         return "Gnani TTS is rate-limited or out of quota (HTTP 429). Check the account limits and retry."
     if isinstance(exc, GnaniTTSRequestError):
-        return "Gnani refused speech synthesis. Check that TTS_VOICE is an enabled Timbre v3.0 voice and that the account has TTS access."
+        if exc.kind == "rejected":
+            return "Gnani rejected the TTS request. Check the selected voice and that the account has Timbre access."
+        return "Timbre audio stopped before the full reply finished. Retry the connection."
     if status:
         return f"Gnani rejected the TTS request (HTTP {status}). Check the voice name and Timbre v3.0 access."
     return f"Speech playback failed ({type(exc).__name__}). Check the Gnani connection and voice configuration."
