@@ -192,12 +192,21 @@ function VisitRecord({ draft, uncertain, savedId }) {
   );
 }
 
-function ConversationPanel({ transcript, agentText, status, mock, latencyMs, savedId, btnState, onPress, onRelease, disabled }) {
+function ConversationPanel({ transcript, agentText, status, mock, latencyMs, savedId, btnState, onToggle, disabled }) {
   const buttonLabel = btnState === "recording"
-    ? "Release to send"
-    : btnState === "speaking"
-      ? "Press to interrupt"
-      : "Press and hold to speak";
+    ? "Tap to stop listening"
+    : btnState === "starting"
+      ? "Tap to cancel microphone start"
+      : btnState === "speaking"
+        ? "Tap to interrupt and speak"
+        : "Tap to start listening";
+  const buttonHint = btnState === "recording"
+    ? "Listening now. Tap again to finish and send."
+    : btnState === "starting"
+      ? "Starting the microphone. Tap again to cancel."
+      : btnState === "speaking"
+        ? "Tap once to stop playback and start speaking."
+        : "Tap once to listen, then tap again to send your note.";
 
   return (
     <section className="surface conversation-panel">
@@ -231,28 +240,12 @@ function ConversationPanel({ transcript, agentText, status, mock, latencyMs, sav
             disabled={disabled || (status !== "connected" && status !== "ready")}
             aria-label={buttonLabel}
             aria-pressed={btnState === "recording"}
-            onPointerDown={(event) => {
-              if (disabled) return;
-              event.preventDefault();
-              event.currentTarget.setPointerCapture?.(event.pointerId);
-              onPress();
-            }}
-            onPointerUp={onRelease}
-            onPointerCancel={onRelease}
-            onKeyDown={(event) => {
-              if ((event.key === " " || event.key === "Enter") && !event.repeat) {
-                event.preventDefault();
-                onPress();
-              }
-            }}
-            onKeyUp={(event) => {
-              if (event.key === " " || event.key === "Enter") onRelease();
-            }}
+            onClick={onToggle}
           >
             <MicIcon />
           </button>
           <strong>{buttonLabel}</strong>
-          <span>Hold while speaking, then release to send.</span>
+          <span>{buttonHint}</span>
         </div>
       )}
 
@@ -345,6 +338,25 @@ function statusHint(status) {
   return "Choose a language to begin.";
 }
 
+function microphoneErrorMessage(error) {
+  if (error.name === "MicrophoneUnavailableError" || error.name === "AudioCaptureUnavailableError") {
+    return error.message;
+  }
+  if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+    return "Microphone access is blocked. Allow it for this site in Chrome or Edge settings, then reload the page.";
+  }
+  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+    return "No microphone was found. Connect or enable a microphone, then try again.";
+  }
+  if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+    return "The microphone is busy or unavailable to the browser. Close other apps using it and try again.";
+  }
+  if (error.name === "OverconstrainedError") {
+    return "The selected microphone does not support the requested audio settings. Try another input device.";
+  }
+  return `Microphone setup failed (${error.name || "unknown error"}). Check the browser permission and selected input device.`;
+}
+
 export default function App() {
   const [screen, setScreen] = useState("welcome");
   const [lang, setLang] = useState("en-IN");
@@ -384,39 +396,46 @@ export default function App() {
     setScreen("session");
   }
 
-  async function handlePress() {
-    if (demoMode || btnState === "recording") return;
+  async function handleMicrophoneToggle() {
+    if (demoMode) return;
+
+    // The same tap button starts and ends a recording. A pending start can be cancelled too.
+    const activeRecorder = recorderRef.current;
+    if (activeRecorder) {
+      const wasReady = activeRecorder.isReady;
+      activeRecorder.stop();
+      recorderRef.current = null;
+      setBtnState("idle");
+      if (wasReady) socket.sendCommit();
+      return;
+    }
+
     setMicError("");
     if (btnState === "speaking") {
       playerRef.current?.stop();
       socket.sendBargeIn();
     }
 
-    recorderRef.current?.stop();
     const recorder = new AudioRecorder();
     recorderRef.current = recorder;
-    setBtnState("recording");
+    setBtnState("starting");
     try {
       await recorder.start(
         (chunk) => socket.sendAudio(chunk),
         (sampleRate) => socket.sendStart(sampleRate),
       );
+      if (recorderRef.current !== recorder) return;
+      setBtnState("recording");
     } catch (error) {
+      if (recorderRef.current !== recorder) {
+        recorder.stop();
+        return;
+      }
       recorder.stop();
       recorderRef.current = null;
       setBtnState("idle");
-      setMicError(error.name === "NotAllowedError"
-        ? "Microphone access was blocked. Allow it for this site, then try again."
-        : "The microphone could not start. Check the device and try again.");
+      setMicError(microphoneErrorMessage(error));
     }
-  }
-
-  function handleRelease() {
-    if (btnState !== "recording") return;
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-    setBtnState("idle");
-    socket.sendCommit();
   }
 
   function startNewVisit() {
@@ -493,8 +512,7 @@ export default function App() {
               latencyMs={socket.latencyMs}
               savedId={socket.savedId}
               btnState={btnState}
-              onPress={handlePress}
-              onRelease={handleRelease}
+              onToggle={handleMicrophoneToggle}
               disabled={!canRecord}
             />
           </div>

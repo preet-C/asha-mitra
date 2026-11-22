@@ -185,6 +185,7 @@
 .mic-button { display: grid; place-items: center; width: 68px; height: 68px; margin-bottom: 11px; border: 0; border-radius: 22px; background: var(--green-800); color: #fff; box-shadow: 0 8px 20px rgba(22, 78, 58, .2); cursor: pointer; touch-action: none; transition: transform .14s ease, background .14s ease, box-shadow .14s ease; }
 .mic-button svg { width: 28px; height: 28px; }
 .mic-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 11px 24px rgba(22, 78, 58, .25); }
+.mic-button--starting { background: #a66c36; }
 .mic-button--recording { background: #b74d40; box-shadow: 0 0 0 7px #f7e8e4, 0 8px 20px rgba(183, 77, 64, .2); transform: scale(1.03); }
 .mic-button--speaking { background: #416d91; }
 .mic-button:disabled { opacity: .44; cursor: not-allowed; box-shadow: none; }

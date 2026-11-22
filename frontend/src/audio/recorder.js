@@ -16,6 +16,12 @@ export class AudioRecorder {
     this._workletNode = null;
     this._onChunk = null;
     this._onReady = null;
+    this._stopped = true;
+    this._ready = false;
+  }
+
+  get isReady() {
+    return this._ready;
   }
 
   /**
@@ -30,18 +36,36 @@ export class AudioRecorder {
   async start(onChunk, onReady) {
     this._onChunk = onChunk;
     this._onReady = onReady;
+    this._stopped = false;
+    this._ready = false;
+
+    // Some embedded browsers do not expose mediaDevices at all.
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      const error = new Error(
+        "This browser does not provide microphone access. Open ASHA Mitra in Chrome or Edge at localhost, then allow microphone access."
+      );
+      error.name = "MicrophoneUnavailableError";
+      throw error;
+    }
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      const error = new Error("This browser does not support audio capture. Open ASHA Mitra in Chrome or Edge.");
+      error.name = "AudioCaptureUnavailableError";
+      throw error;
+    }
 
     // Step 1: Try to create AudioContext at 16000 Hz (what Gnani STT wants).
     // Some mobile browsers silently ignore the requested sampleRate and use their
     // native rate instead. We read back context.sampleRate to get the truth.
     let context;
     try {
-      context = new AudioContext({ sampleRate: 16000 });
+      context = new AudioContextClass({ sampleRate: 16000 });
     } catch (err) {
       // Browser rejected 16000 Hz — fall back to whatever the browser prefers.
       // We'll report the actual rate in onReady so the backend can tell Gnani.
       console.warn("[recorder] AudioContext 16000 Hz refused, using default rate:", err.message);
-      context = new AudioContext();
+      context = new AudioContextClass();
     }
     this._context = context;
 
@@ -50,6 +74,7 @@ export class AudioRecorder {
     if (context.state === "suspended") {
       await context.resume();
     }
+    if (this._stopped) return;
 
     const actualRate = context.sampleRate;
     console.log(`[recorder] AudioContext sample rate: ${actualRate} Hz`);
@@ -58,17 +83,28 @@ export class AudioRecorder {
     // WHY addModule before getUserMedia: the worklet must be registered before
     // we try to create an AudioWorkletNode from it, or the constructor throws.
     // The path is relative to the page origin — Vite serves public/ at root.
+    if (!context.audioWorklet?.addModule || typeof AudioWorkletNode === "undefined") {
+      const error = new Error("This browser does not support the audio recorder. Open ASHA Mitra in Chrome or Edge.");
+      error.name = "AudioCaptureUnavailableError";
+      throw error;
+    }
     await context.audioWorklet.addModule("/recorder-worklet.js");
+    if (this._stopped) return;
 
     // Step 3: Request microphone access with settings optimised for voice.
-    this._stream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        channelCount: 1,  // mono — Gnani STT wants mono
+        channelCount: { ideal: 1 },  // Prefer mono without rejecting other working mics.
       },
     });
+    if (this._stopped) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    this._stream = stream;
 
     // Step 4: Connect mic → worklet.
     this._sourceNode = context.createMediaStreamSource(this._stream);
@@ -84,6 +120,7 @@ export class AudioRecorder {
     };
 
     // Start the server session with the real rate before the worklet emits audio.
+    this._ready = true;
     if (this._onReady) {
       this._onReady(actualRate);
     }
@@ -110,6 +147,9 @@ export class AudioRecorder {
    * the red recording indicator on until all tracks are explicitly stopped.
    */
   stop() {
+    this._stopped = true;
+    this._ready = false;
+
     // Disconnect audio graph nodes first.
     if (this._workletNode) {
       this._workletNode.port.onmessage = null;
