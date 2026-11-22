@@ -8,13 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AudioRecorder } from "./audio/recorder";
 import { AudioPlayer } from "./audio/player";
-
-// Determine WebSocket protocol based on page protocol.
-// WHY: on HTTPS (cloudflared tunnel) we need wss://, on HTTP we need ws://.
-function wsUrl(path) {
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${window.location.host}${path}`;
-}
+import { wsUrl } from "./lib/backendUrl";
 
 export default function Spike() {
   const [status, setStatus] = useState("idle"); // idle | recording | waiting | playing | done | error

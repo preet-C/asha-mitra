@@ -103,6 +103,7 @@ audio capture/playback, and scripted demo preview.
 ## Docs
 
 - [`docs/guideline_sources.md`](docs/guideline_sources.md) — danger sign sources (for judges)
+- [`docs/DEPLOY_FREE.md`](docs/DEPLOY_FREE.md) — free Render + Cloudflare Pages demo deployment
 
 ## Safety
 

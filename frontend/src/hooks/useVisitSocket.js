@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createMockSocket } from "../mock/mockSocket";
+import { wsUrl } from "../lib/backendUrl";
 
 const MAX_RETRIES = 3;
 const MAX_QUEUED_AUDIO_BYTES = 512 * 1024;
-
-function wsUrl(path) {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${protocol}://${window.location.host}${path}`;
-}
 
 export function useVisitSocket({
   lang,

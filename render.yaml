@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: asha-mitra-api
+    runtime: python
+    plan: free
+    branch: master
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        value: memory
+      - key: GENERATIVE_SPEECH
+        value: off
+      - key: GNANI_API_KEY
+        sync: false
+      - key: TTS_VOICE
+        sync: false
+      - key: LLM_PROVIDER
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: ""

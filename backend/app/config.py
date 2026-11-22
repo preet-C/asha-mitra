@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = ""
     LLM_API_KEY: str = ""
     DATABASE_URL: str = ""        # empty = in-memory repo
+    CORS_ORIGINS: str = ""        # comma-separated exact browser origins
     TRANSCRIPT_KEY: str = ""      # Fernet key for encrypting transcripts
     TTS_VOICE: str = ""
     GENERATIVE_SPEECH: str = "off"  # D3: kill switch

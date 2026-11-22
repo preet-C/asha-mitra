@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, WebSocket
 
 from app.config import get_settings
+from app.cors import configure_cors, is_origin_allowed
 from app.date_utils import today_in_india
 
 
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ASHA Mitra", lifespan=lifespan)
+configure_cors(app, get_settings().CORS_ORIGINS)
 
 
 # ── health check ──────────────────────────────────────────────────────────────
@@ -129,6 +131,13 @@ async def ws_session(websocket: WebSocket):
                    tts_end, latency, saved, setting, error.
     """
     from app.voice.gateway import GnaniGateway
+    if not is_origin_allowed(
+        get_settings().CORS_ORIGINS,
+        websocket.headers.get("origin"),
+    ):
+        await websocket.close(code=1008)
+        return
+
     gateway = GnaniGateway(repo=repo)
     try:
         await gateway.run(websocket)

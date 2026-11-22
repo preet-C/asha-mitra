@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AudioRecorder } from "./audio/recorder";
 import { AudioPlayer } from "./audio/player";
 import { useVisitSocket } from "./hooks/useVisitSocket";
+import { apiUrl } from "./lib/backendUrl";
 import "./App.css";
 
 const LANGUAGES = [
@@ -260,7 +261,7 @@ function FollowUpList({ mock }) {
 
   const fetchFollowups = useCallback(async (signal) => {
     if (mock) return MOCK_FOLLOWUPS;
-    const response = await fetch("/api/followups", { signal });
+    const response = await fetch(apiUrl("/api/followups"), { signal });
     if (!response.ok) throw new Error("Follow-up request failed");
     return response.json();
   }, [mock]);
