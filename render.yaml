@@ -6,13 +6,15 @@ services:
     branch: master
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python -m scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
       - key: APP_ENV
         value: production
       - key: DATABASE_URL
-        value: memory
+        sync: false
+      - key: TRANSCRIPT_KEY
+        sync: false
       - key: GENERATIVE_SPEECH
         value: off
       - key: GNANI_API_KEY

@@ -27,6 +27,19 @@ from app.config import get_settings
 _engine: sa.Engine | None = None
 
 
+def _engine_url(raw_url: str) -> sa.engine.URL:
+    """Parse DATABASE_URL and select the psycopg 3 driver for Postgres.
+
+    WHY: managed Postgres providers commonly give URLs starting with
+    ``postgres://`` or ``postgresql://``. SQLAlchemy may otherwise select
+    psycopg2, which this project does not install.
+    """
+    url = sa.engine.make_url(raw_url.strip())
+    if url.drivername in {"postgres", "postgresql"}:
+        url = url.set(drivername="postgresql+psycopg")
+    return url
+
+
 def get_engine() -> sa.Engine:
     """Return (and lazily create) the shared SQLAlchemy engine.
 
@@ -41,7 +54,11 @@ def get_engine() -> sa.Engine:
                 "Set it to your Neon/Supabase postgres URL and restart."
             )
         # echo=False: don't print every SQL statement in production
-        _engine = sa.create_engine(url, echo=False)
+        _engine = sa.create_engine(
+            _engine_url(url),
+            echo=False,
+            pool_pre_ping=True,
+        )
     return _engine
 
 
