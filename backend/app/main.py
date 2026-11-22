@@ -7,7 +7,7 @@
 # RULE: Static frontend mount goes at the very END (P11).
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket
 
 from app.config import get_settings
 from app.date_utils import today_in_india
@@ -95,7 +95,7 @@ def get_followups(days_ahead: int = 7):
 # ── P9 route — /ws/loopback (audio spike, no Gnani) ─────────────────────────
 
 @app.websocket("/ws/loopback")
-async def ws_loopback(websocket):
+async def ws_loopback(websocket: WebSocket):
     """P9 audio plumbing spike.
 
     Collects PCM16 audio from the browser until the user releases the button
@@ -116,7 +116,7 @@ async def ws_loopback(websocket):
 # ── P10 route — /ws/session ───────────────────────────────────────────────────
 
 @app.websocket("/ws/session")
-async def ws_session(websocket):
+async def ws_session(websocket: WebSocket):
     """One browser voice session: STT → brain → TTS, full duplex.
 
     WHY a separate import inside the function: GnaniGateway imports Gnani
